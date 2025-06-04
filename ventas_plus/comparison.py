@@ -38,6 +38,21 @@ def normalize_factura_num(val):
             return '0'
         return normalized
 
+def normalize_nit(val):
+        """
+        Normaliza el NIT convirtiendo a entero si es posible, sino deja como string limpio.
+        """
+        try:
+            if pd.isna(val) or str(val).strip() == '':
+                return ''
+            # Si es float pero sin decimales, convertir a int
+            fval = float(val)
+            if fval.is_integer():
+                return str(int(fval))
+            return str(int(fval)) if fval == int(fval) else str(fval)
+        except Exception:
+            return str(val).strip()
+
 def compare_siat_with_inventory(siat_data, inventory_data):
     """
     Comparar facturas del SIAT con las del sistema de inventarios.
@@ -298,6 +313,8 @@ def compare_siat_with_inventory(siat_data, inventory_data):
     # Marcar facturas que están en inventario pero no en SIAT
     merged['OBSERVACIONES'] = merged.apply(
         lambda row: (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + 'No existe en SIAT' if pd.isna(row.get('CODIGO DE AUTORIZACIÓN')) else row['OBSERVACIONES'], axis=1)
+    # Eliminar del DataFrame de verificación completa las facturas que no existen en SIAT (caso fatal)
+    merged = merged[~merged['OBSERVACIONES'].str.contains('No existe en SIAT', na=False)]
     # Marcar discrepancias en campos (solo si existe en inventario y no es alquiler)
     def check_discrepancias(row):
         if pd.isna(row.get('fechaFac')) or str(row.get('SECTOR', '')) == '02':
@@ -316,9 +333,11 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         # Comparar fecha
         if str(row.get('FECHA DE LA FACTURA', '')) != str(row.get('fechaFac', '')):
             obs.append(f"Fecha: SIAT={row.get('FECHA DE LA FACTURA','')}, INV={row.get('fechaFac','')}")
-        # Comparar NIT
-        if str(row.get('NIT / CI CLIENTE', '')).strip() != str(row.get('nit', '')).strip():
-            obs.append(f"NIT: SIAT={row.get('NIT / CI CLIENTE','')}, INV={row.get('nit','')}")
+        # Comparar NIT normalizado
+        nit_siat = normalize_nit(row.get('NIT / CI CLIENTE', ''))
+        nit_inv = normalize_nit(row.get('nit', ''))
+        if nit_siat != nit_inv:
+            obs.append(f"NIT: SIAT={nit_siat}, INV={nit_inv}")
         # Comparar importe
         siat_importe = pd.to_numeric(row.get('IMPORTE TOTAL DE LA VENTA', 0), errors='coerce')
         inv_importe = pd.to_numeric(row.get('importeTotal', 0), errors='coerce')
