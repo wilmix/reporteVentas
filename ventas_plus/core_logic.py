@@ -352,13 +352,13 @@ def get_inventory_system_invoices(db_params, year, month):
         conn = connect_to_db(db_params)
         if conn is None:
             return None
-            
-        # Definir la consulta SQL
+              # Definir la consulta SQL
         query = """
             SELECT
                 DATE_FORMAT(f.fechaFac, '%d/%m/%Y') fechaFac,
                 nFactura,
                 fs.cuf autorizacion,
+                fs.codigoSucursal,
                 f.ClienteNit nit,
                 '' complemento,
                 f.ClienteFactura razonSocial,
@@ -423,7 +423,7 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         inventory_data (DataFrame): Datos de facturas del sistema de inventarios
         
     Returns:
-        dict: Resultados de la comparación
+        dict: Resultados de la comparación y DataFrame con detalles
     """
     results = {
         'total_siat': len(siat_data),
@@ -432,7 +432,8 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         'missing_in_inventory': [],
         'missing_in_siat': [],
         'amount_difference': 0.0,
-        'amount_difference_details': []
+        'amount_difference_details': [],
+        'field_discrepancies': []
     }
     
     # Excluir facturas de alquileres del SIAT (SECTOR 02)
@@ -463,33 +464,137 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         missing_df = inventory_data[inventory_data['autorizacion'].isin(missing_in_siat)]
         results['missing_in_siat'] = missing_df[['autorizacion', 'importeTotal', 'estado']].to_dict('records')
     
-    # Verificar diferencias en montos para facturas que coinciden
+    # Verificar diferencias en campos específicos para facturas que coinciden
     if len(matching_auths) > 0:
         # Preparar DataFrames para comparación
         siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
         inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
+          # Crear DataFrames con columnas a comparar
+        # SIAT columns
+        siat_compare = siat_matching[[
+            'CODIGO DE AUTORIZACIÓN',
+            'FECHA DE LA FACTURA',
+            'Nº DE LA FACTURA',
+            'NIT / CI CLIENTE',
+            'NOMBRE O RAZON SOCIAL',
+            'IMPORTE TOTAL DE LA VENTA',
+            'ESTADO',
+            'SUCURSAL'
+        ]].copy()
         
-        # Crear DataFrames con solo las columnas necesarias
-        siat_compare = siat_matching[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA']].copy()
-        inventory_compare = inventory_matching[['autorizacion', 'importeTotal']].copy()
+        # Inventory columns
+        inventory_compare = inventory_matching[[
+            'autorizacion',
+            'fechaFac',
+            'nFactura',
+            'nit',
+            'razonSocial',
+            'importeTotal',
+            'estado',
+            'codigoSucursal'
+        ]].copy()
         
         # Renombrar columnas para facilitar la comparación
-        siat_compare.rename(columns={'CODIGO DE AUTORIZACIÓN': 'autorizacion', 'IMPORTE TOTAL DE LA VENTA': 'importe_siat'}, inplace=True)
-        inventory_compare.rename(columns={'importeTotal': 'importe_inventory'}, inplace=True)
+        siat_compare.rename(columns={
+            'CODIGO DE AUTORIZACIÓN': 'autorizacion',
+            'FECHA DE LA FACTURA': 'fecha_siat',
+            'Nº DE LA FACTURA': 'nfactura_siat',
+            'NIT / CI CLIENTE': 'nit_siat',
+            'NOMBRE O RAZON SOCIAL': 'razon_social_siat',
+            'IMPORTE TOTAL DE LA VENTA': 'importe_siat',
+            'ESTADO': 'estado_siat',
+            'SUCURSAL': 'sucursal_siat'
+        }, inplace=True)
+        
+        inventory_compare.rename(columns={
+            'fechaFac': 'fecha_inv',
+            'nFactura': 'nfactura_inv',
+            'nit': 'nit_inv',
+            'razonSocial': 'razon_social_inv',
+            'importeTotal': 'importe_inv',
+            'estado': 'estado_inv',
+            'codigoSucursal': 'sucursal_inv'
+        }, inplace=True)
         
         # Combinar DataFrames para comparación
         comparison = pd.merge(siat_compare, inventory_compare, on='autorizacion')
         
-        # Calcular diferencias
-        comparison['diferencia'] = comparison['importe_siat'] - comparison['importe_inventory']
+        # Agregar columna de observaciones
+        comparison['OBSERVACIONES'] = ''
+          # Convertir las columnas numéricas
+        comparison['nfactura_siat'] = pd.to_numeric(comparison['nfactura_siat'], errors='coerce')
+        comparison['nfactura_inv'] = pd.to_numeric(comparison['nfactura_inv'], errors='coerce')
+        comparison['nit_siat'] = comparison['nit_siat'].astype(str).str.strip()
+        comparison['nit_inv'] = comparison['nit_inv'].astype(str).str.strip()
         
-        # Filtrar solo los que tienen diferencias significativas (más de 0.01)
-        differences = comparison[abs(comparison['diferencia']) > 0.01]
+        # Función para normalizar códigos de sucursal (aplicable antes del procesamiento individual)
+        def normalize_branch_code(code):
+            if code is None or pd.isna(code):
+                return ''
+            # Convertir a string, quitar espacios, quitar ceros a la izquierda
+            normalized = str(code).strip().lstrip('0')
+            # Si quedó vacío después de quitar los ceros, era un "0" o "00", etc.
+            if normalized == '':
+                return '0'
+            return normalized
+        
+        # Normalizar códigos de sucursal antes de las comparaciones
+        comparison['sucursal_siat_norm'] = comparison['sucursal_siat'].apply(normalize_branch_code)
+        comparison['sucursal_inv_norm'] = comparison['sucursal_inv'].apply(normalize_branch_code)
+        
+        # Convertir estados de inventario a formato SIAT (V->VALIDA, A->ANULADA)
+        comparison['estado_inv'] = comparison['estado_inv'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
+        
+        # Verificar discrepancias en cada campo
+        for i, row in comparison.iterrows():
+            observaciones = []
+            
+            # 1. Verificar fecha
+            if row['fecha_siat'] != row['fecha_inv']:
+                observaciones.append(f"Fecha: SIAT={row['fecha_siat']}, INV={row['fecha_inv']}")
+                
+            # 2. Verificar número de factura
+            if row['nfactura_siat'] != row['nfactura_inv']:
+                observaciones.append(f"Nº Factura: SIAT={row['nfactura_siat']}, INV={row['nfactura_inv']}")
+                
+            # 3. Verificar NIT
+            if row['nit_siat'] != row['nit_inv']:
+                observaciones.append(f"NIT: SIAT={row['nit_siat']}, INV={row['nit_inv']}")
+                
+            # 5. Verificar importe (con tolerancia de 0.01)
+            if abs(row['importe_siat'] - row['importe_inv']) > 0.01:
+                observaciones.append(f"Importe: SIAT={row['importe_siat']}, INV={row['importe_inv']}")
+                
+            # 6. Verificar estado
+            if row['estado_siat'] != row['estado_inv']:
+                observaciones.append(f"Estado: SIAT={row['estado_siat']}, INV={row['estado_inv']}")            # 7. Verificar sucursal usando los valores normalizados previamente calculados
+            # Solo agregar observación si hay diferencia en el valor efectivo, no solo en formato
+            if row['sucursal_siat_norm'] != row['sucursal_inv_norm']:
+                observaciones.append(f"Sucursal: SIAT={row['sucursal_siat']}, INV={row['sucursal_inv']}")
+                # Para debug (opcional): podemos agregar los valores normalizados para verificación
+                # observaciones.append(f"Sucursal normalizada: SIAT={row['sucursal_siat_norm']}, INV={row['sucursal_inv_norm']}")
+                
+            # Guardar observaciones
+            if observaciones:
+                comparison.at[i, 'OBSERVACIONES'] = "; ".join(observaciones)
+                results['field_discrepancies'].append({
+                    'autorizacion': row['autorizacion'],
+                    'observaciones': "; ".join(observaciones)
+                })
+        
+        # Calcular diferencias en montos (igual que antes)
+        comparison['diferencia_importe'] = comparison['importe_siat'] - comparison['importe_inv']
+        
+        # Filtrar solo los que tienen diferencias significativas en montos (más de 0.01)
+        differences = comparison[abs(comparison['diferencia_importe']) > 0.01]
         
         if len(differences) > 0:
             results['amount_differences_count'] = len(differences)
-            results['amount_difference'] = differences['diferencia'].sum()
+            results['amount_difference'] = differences['diferencia_importe'].sum()
             results['amount_difference_details'] = differences.to_dict('records')
+        
+        # Guardar el DataFrame completo para retornarlo
+        results['comparison_dataframe'] = comparison
     
     return results
 
@@ -565,28 +670,78 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         print(f"\nFacturas con diferencias de montos: {comparison_results['amount_differences_count']}")
         print(f"Diferencia total: {comparison_results['amount_difference']:,.2f}")
     
+    if 'field_discrepancies' in comparison_results and comparison_results['field_discrepancies']:
+        print(f"\nFacturas con discrepancias en campos: {len(comparison_results['field_discrepancies'])}")
+    
     # Exportar resultados si se solicita
     if export_results:
         output_dir = os.path.join(project_root, "data", "output")
         os.makedirs(output_dir, exist_ok=True)
-        
-        # Crear un DataFrame con las diferencias
+
+        # Unificar discrepancias en un solo DataFrame
+        discrepancias = []
+        columns_to_export = [
+            'autorizacion',
+            'fecha_siat', 'fecha_inv',
+            'nfactura_siat', 'nfactura_inv',
+            'nit_siat', 'nit_inv',
+            'importe_siat', 'importe_inv',
+            'diferencia_importe',
+            'estado_siat', 'estado_inv',
+            'sucursal_siat', 'sucursal_inv',
+            'sucursal_siat_norm', 'sucursal_inv_norm',
+            'OBSERVACIONES'
+        ]
+
+        # 1. Discrepancias de campos (ya tienen OBSERVACIONES)
+        if 'comparison_dataframe' in comparison_results:
+            comparison_df = comparison_results['comparison_dataframe']
+            discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'] != '']
+            if not discrepancias_df.empty:
+                discrepancias.extend(discrepancias_df[columns_to_export].to_dict('records'))
+
+        # 2. Facturas en SIAT pero no en inventarios
         if comparison_results['missing_in_inventory']:
-            missing_inv_df = pd.DataFrame(comparison_results['missing_in_inventory'])
-            missing_inv_path = os.path.join(output_dir, f"missing_in_inventory_{formatted_month}_{year}.csv")
-            missing_inv_df.to_csv(missing_inv_path, index=False)
-            print(f"\nFacturas faltantes en inventarios guardadas en: {missing_inv_path}")
-            
-        if comparison_results['missing_in_siat']:
-            missing_siat_df = pd.DataFrame(comparison_results['missing_in_siat'])
-            missing_siat_path = os.path.join(output_dir, f"missing_in_siat_{formatted_month}_{year}.csv")
-            missing_siat_df.to_csv(missing_siat_path, index=False)
-            print(f"Facturas faltantes en SIAT guardadas en: {missing_siat_path}")
-            
-        if 'amount_difference_details' in comparison_results and comparison_results['amount_difference_details']:
-            diff_df = pd.DataFrame(comparison_results['amount_difference_details'])
-            diff_path = os.path.join(output_dir, f"amount_differences_{formatted_month}_{year}.csv")
-            diff_df.to_csv(diff_path, index=False)
-            print(f"Diferencias de montos guardadas en: {diff_path}")
-    
-    return comparison_results
+            for row in comparison_results['missing_in_inventory']:
+                discrepancias.append({
+                    'autorizacion': row.get('CODIGO DE AUTORIZACIÓN', ''),
+                    'fecha_siat': '', 'fecha_inv': '',
+                    'nfactura_siat': '', 'nfactura_inv': '',
+                    'nit_siat': '', 'nit_inv': '',
+                    'importe_siat': row.get('IMPORTE TOTAL DE LA VENTA', ''),
+                    'importe_inv': '',
+                    'diferencia_importe': '',
+                    'estado_siat': row.get('ESTADO', ''), 'estado_inv': '',
+                    'sucursal_siat': '', 'sucursal_inv': '',
+                    'sucursal_siat_norm': '', 'sucursal_inv_norm': '',
+                    'OBSERVACIONES': 'Factura no encontrada en sistema de inventarios'
+                })
+
+        # 3. (Opcional) Facturas en inventarios pero no en SIAT
+        # Si quieres incluirlas, descomenta este bloque:
+        # if comparison_results['missing_in_siat']:
+        #     for row in comparison_results['missing_in_siat']:
+        #         discrepancias.append({
+        #             'autorizacion': row.get('autorizacion', ''),
+        #             'fecha_siat': '', 'fecha_inv': '',
+        #             'nfactura_siat': '', 'nfactura_inv': '',
+        #             'nit_siat': '', 'nit_inv': '',
+        #             'razon_social_siat': '', 'razon_social_inv': '',
+        #             'importe_siat': '',
+        #             'importe_inv': row.get('importeTotal', ''),
+        #             'diferencia_importe': '',
+        #             'estado_siat': '', 'estado_inv': row.get('estado', ''),
+        #             'sucursal_siat': '', 'sucursal_inv': '',
+        #             'sucursal_siat_norm': '', 'sucursal_inv_norm': '',
+        #             'OBSERVACIONES': 'Factura no encontrada en SIAT'
+        #         })
+
+        # Exportar el archivo único de discrepancias
+        if discrepancias:
+            discrepancias_df = pd.DataFrame(discrepancias)
+            discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
+            discrepancias_df.to_csv(discrepancias_path, index=False, sep=';')
+            print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
+        else:
+            print("No se encontraron discrepancias para exportar.")
+        return comparison_results

@@ -14,7 +14,15 @@ Ventas-Plus es un sistema diseñado para procesar archivos de ventas en formato 
 - Verificación de consistencia entre facturas del SIAT y el sistema de inventarios:
   - Detección de facturas faltantes en el sistema de inventarios
   - Detección de facturas no reportadas al SIAT
-  - Identificación de diferencias en los montos entre ambos sistemas
+  - Verificación detallada de campos entre ambos sistemas:
+    - FECHA DE LA FACTURA (fechaFac)
+    - Nº DE LA FACTURA (nFactura)
+    - NIT/CI CLIENTE (nit)
+    - NOMBRE O RAZON SOCIAL (razonSocial)
+    - IMPORTE TOTAL DE LA VENTA (importeTotal)
+    - ESTADO (estado)
+    - SUCURSAL (codigoSucursal)
+  - Identificación de todas las discrepancias con observaciones detalladas
 - Generación de reportes detallados
 - Exportación de datos procesados y resultados de verificación a CSV
 
@@ -93,6 +101,8 @@ Los resultados de la verificación se exportan automáticamente a los siguientes
 - `data/output/missing_in_inventory_MM_YYYY.csv`: Facturas que están en SIAT pero no en inventarios
 - `data/output/missing_in_siat_MM_YYYY.csv`: Facturas que están en inventarios pero no en SIAT
 - `data/output/amount_differences_MM_YYYY.csv`: Facturas con diferencias en los montos
+- `data/output/verificacion_completa_MM_YYYY.csv`: Informe completo con todas las facturas comparadas
+- `data/output/discrepancias_MM_YYYY.csv`: Solo las facturas que presentan discrepancias con observaciones
 
 Si no se especifican parámetros, el sistema solicitará el mes y año a procesar interactivamente.
 
@@ -111,7 +121,9 @@ ventas-plus/
 │       ├── ventas_procesadas_MM_YYYY.csv     # Datos procesados del SIAT
 │       ├── missing_in_inventory_MM_YYYY.csv  # Facturas en SIAT pero no en inventarios
 │       ├── missing_in_siat_MM_YYYY.csv       # Facturas en inventarios pero no en SIAT
-│       └── amount_differences_MM_YYYY.csv    # Facturas con diferencias en montos
+│       ├── amount_differences_MM_YYYY.csv    # Facturas con diferencias en montos
+│       ├── verificacion_completa_MM_YYYY.csv # Informe completo de verificación
+│       └── discrepancias_MM_YYYY.csv         # Facturas con discrepancias
 ├── ventas_plus/       # Módulo principal
 │   └── core_logic.py  # Lógica central del procesamiento
 └── tests/            # Pruebas unitarias
@@ -136,8 +148,30 @@ Los archivos generados por la verificación de consistencia contienen los siguie
 3. **amount_differences_MM_YYYY.csv**:
    - `autorizacion`: Código de autorización SIAT/inventario
    - `importe_siat`: Monto según SIAT
-   - `importe_inventory`: Monto según sistema de inventarios
-   - `diferencia`: Diferencia entre ambos montos
+   - `importe_inv`: Monto según sistema de inventarios
+   - `diferencia_importe`: Diferencia entre ambos montos
+
+4. **verificacion_completa_MM_YYYY.csv**:
+   - `autorizacion`: Código de autorización SIAT/inventario
+   - `fecha_siat`: Fecha según SIAT
+   - `fecha_inv`: Fecha según sistema de inventarios
+   - `nfactura_siat`: Número de factura según SIAT
+   - `nfactura_inv`: Número de factura según sistema de inventarios
+   - `nit_siat`: NIT/CI del cliente según SIAT
+   - `nit_inv`: NIT/CI del cliente según sistema de inventarios
+   - `razon_social_siat`: Nombre o razón social según SIAT
+   - `razon_social_inv`: Nombre o razón social según sistema de inventarios
+   - `importe_siat`: Monto según SIAT
+   - `importe_inv`: Monto según sistema de inventarios
+   - `diferencia_importe`: Diferencia entre montos
+   - `estado_siat`: Estado según SIAT (VALIDA/ANULADA)
+   - `estado_inv`: Estado según sistema de inventarios
+   - `sucursal_siat`: Código de sucursal según SIAT
+   - `sucursal_inv`: Código de sucursal según sistema de inventarios
+   - `OBSERVACIONES`: Descripción de todas las discrepancias encontradas
+
+5. **discrepancias_MM_YYYY.csv**:
+   - Contiene los mismos campos que el archivo de verificación completa, pero incluye únicamente las facturas que presentan discrepancias en alguno de los campos comparados.
 
 ## Solución de Problemas
 
