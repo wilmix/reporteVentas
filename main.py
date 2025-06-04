@@ -14,6 +14,7 @@ from ventas_plus.core_logic import (
     analyze_sales_data_detailed,
     verify_invoice_consistency
 )
+from ventas_plus.comparison import compare_siat_with_inventory
 
 def get_month_year_input(month=None, year=None):
     """

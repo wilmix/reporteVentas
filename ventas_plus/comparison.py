@@ -1,0 +1,139 @@
+"""
+Módulo para comparación de facturas SIAT vs Inventario y reporte de discrepancias.
+"""
+
+import pandas as pd
+
+def compare_siat_with_inventory(siat_data, inventory_data):
+    """
+    Comparar facturas del SIAT con las del sistema de inventarios.
+    Args:
+        siat_data (DataFrame): Datos de facturas del SIAT
+        inventory_data (DataFrame): Datos de facturas del sistema de inventarios
+    Returns:
+        dict: Resultados de la comparación y DataFrame con detalles
+    """
+    results = {
+        'total_siat': len(siat_data),
+        'total_inventory': len(inventory_data),
+        'matching_invoices': 0,
+        'missing_in_inventory': [],
+        'missing_in_siat': [],
+        'amount_difference': 0.0,
+        'amount_difference_details': [],
+        'field_discrepancies': []
+    }
+
+    # Excluir facturas de alquileres del SIAT (SECTOR 02)
+    siat_no_alquileres = siat_data[siat_data['SECTOR'] != '02']
+    results['total_siat_no_alquileres'] = len(siat_no_alquileres)
+
+    # Crear Series con autorizaciones para comparación rápida
+    siat_auths = set(siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].str.strip())
+    inventory_auths = set(inventory_data['autorizacion'].str.strip())
+
+    # Encontrar facturas que coinciden
+    matching_auths = siat_auths.intersection(inventory_auths)
+    results['matching_invoices'] = len(matching_auths)
+
+    # Encontrar facturas que están en SIAT pero no en inventario
+    missing_in_inventory = siat_auths - inventory_auths
+    results['missing_in_inventory_count'] = len(missing_in_inventory)
+    if len(missing_in_inventory) > 0:
+        missing_df = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(missing_in_inventory)]
+        results['missing_in_inventory'] = missing_df[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO']].to_dict('records')
+
+    # Encontrar facturas que están en inventario pero no en SIAT
+    missing_in_siat = inventory_auths - siat_auths
+    results['missing_in_siat_count'] = len(missing_in_siat)
+    if len(missing_in_siat) > 0:
+        missing_df = inventory_data[inventory_data['autorizacion'].isin(missing_in_siat)]
+        results['missing_in_siat'] = missing_df[['autorizacion', 'importeTotal', 'estado']].to_dict('records')
+
+    # Verificar diferencias en campos específicos para facturas que coinciden
+    if len(matching_auths) > 0:
+        siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
+        inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
+        siat_compare = siat_matching[[
+            'CODIGO DE AUTORIZACIÓN',
+            'FECHA DE LA FACTURA',
+            'Nº DE LA FACTURA',
+            'NIT / CI CLIENTE',
+            'NOMBRE O RAZON SOCIAL',
+            'IMPORTE TOTAL DE LA VENTA',
+            'ESTADO',
+            'SUCURSAL'
+        ]].copy()
+        inventory_compare = inventory_matching[[
+            'autorizacion',
+            'fechaFac',
+            'nFactura',
+            'nit',
+            'razonSocial',
+            'importeTotal',
+            'estado',
+            'codigoSucursal'
+        ]].copy()
+        siat_compare.rename(columns={
+            'CODIGO DE AUTORIZACIÓN': 'autorizacion',
+            'FECHA DE LA FACTURA': 'fecha_siat',
+            'Nº DE LA FACTURA': 'nfactura_siat',
+            'NIT / CI CLIENTE': 'nit_siat',
+            'NOMBRE O RAZON SOCIAL': 'razon_social_siat',
+            'IMPORTE TOTAL DE LA VENTA': 'importe_siat',
+            'ESTADO': 'estado_siat',
+            'SUCURSAL': 'sucursal_siat'
+        }, inplace=True)
+        inventory_compare.rename(columns={
+            'fechaFac': 'fecha_inv',
+            'nFactura': 'nfactura_inv',
+            'nit': 'nit_inv',
+            'razonSocial': 'razon_social_inv',
+            'importeTotal': 'importe_inv',
+            'estado': 'estado_inv',
+            'codigoSucursal': 'sucursal_inv'
+        }, inplace=True)
+        comparison = pd.merge(siat_compare, inventory_compare, on='autorizacion')
+        comparison['OBSERVACIONES'] = ''
+        comparison['nfactura_siat'] = pd.to_numeric(comparison['nfactura_siat'], errors='coerce')
+        comparison['nfactura_inv'] = pd.to_numeric(comparison['nfactura_inv'], errors='coerce')
+        comparison['nit_siat'] = comparison['nit_siat'].astype(str).str.strip()
+        comparison['nit_inv'] = comparison['nit_inv'].astype(str).str.strip()
+        def normalize_branch_code(code):
+            if code is None or pd.isna(code):
+                return ''
+            normalized = str(code).strip().lstrip('0')
+            if normalized == '':
+                return '0'
+            return normalized
+        comparison['sucursal_siat_norm'] = comparison['sucursal_siat'].apply(normalize_branch_code)
+        comparison['sucursal_inv_norm'] = comparison['sucursal_inv'].apply(normalize_branch_code)
+        comparison['estado_inv'] = comparison['estado_inv'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
+        for i, row in comparison.iterrows():
+            observaciones = []
+            if row['fecha_siat'] != row['fecha_inv']:
+                observaciones.append(f"Fecha: SIAT={row['fecha_siat']}, INV={row['fecha_inv']}")
+            if row['nfactura_siat'] != row['nfactura_inv']:
+                observaciones.append(f"Nº Factura: SIAT={row['nfactura_siat']}, INV={row['nfactura_inv']}")
+            if row['nit_siat'] != row['nit_inv']:
+                observaciones.append(f"NIT: SIAT={row['nit_siat']}, INV={row['nit_inv']}")
+            if abs(row['importe_siat'] - row['importe_inv']) > 0.01:
+                observaciones.append(f"Importe: SIAT={row['importe_siat']}, INV={row['importe_inv']}")
+            if row['estado_siat'] != row['estado_inv']:
+                observaciones.append(f"Estado: SIAT={row['estado_siat']}, INV={row['estado_inv']}")
+            if row['sucursal_siat_norm'] != row['sucursal_inv_norm']:
+                observaciones.append(f"Sucursal: SIAT={row['sucursal_siat']}, INV={row['sucursal_inv']}")
+            if observaciones:
+                comparison.at[i, 'OBSERVACIONES'] = "; ".join(observaciones)
+                results['field_discrepancies'].append({
+                    'autorizacion': row['autorizacion'],
+                    'observaciones': "; ".join(observaciones)
+                })
+        comparison['diferencia_importe'] = comparison['importe_siat'] - comparison['importe_inv']
+        differences = comparison[abs(comparison['diferencia_importe']) > 0.01]
+        if len(differences) > 0:
+            results['amount_differences_count'] = len(differences)
+            results['amount_difference'] = differences['diferencia_importe'].sum()
+            results['amount_difference_details'] = differences.to_dict('records')
+        results['comparison_dataframe'] = comparison
+    return results

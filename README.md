@@ -129,6 +129,25 @@ ventas-plus/
 └── tests/            # Pruebas unitarias
 ```
 
+## Cambios de Estructura y Modularización (2025)
+
+A partir de junio 2025, el proyecto fue refactorizado para mejorar su mantenibilidad y escalabilidad. La lógica central se dividió en módulos especializados:
+
+- `ventas_plus/data_ingestion.py`: Funciones para la carga y lectura de archivos (Excel, ZIP, etc).
+- `ventas_plus/db_utils.py`: Funciones para la configuración, conexión y consulta a la base de datos.
+- `ventas_plus/ventas_processing.py`: Procesamiento y análisis de datos de ventas.
+- `ventas_plus/comparison.py`: Lógica de comparación entre SIAT e inventario y reporte de discrepancias.
+- `ventas_plus/branch_normalization.py`: Funciones para normalización de códigos de sucursal.
+
+El archivo `core_logic.py` ahora solo orquesta el flujo principal y delega la lógica a los módulos anteriores. Esto facilita el mantenimiento, las pruebas y futuras ampliaciones.
+
+**Importante:**
+- Toda la lógica de comparación y reporte de discrepancias se encuentra ahora en `comparison.py`.
+- El campo "razon social" ya no se compara ni reporta como discrepancia.
+- El reporte de discrepancias se unificó en un solo archivo CSV: `discrepancias_MM_YYYY.csv`.
+
+Revisa la sección "Estructura del proyecto" para ver la nueva organización de archivos.
+
 ## Formato de Archivos de Salida
 
 ### Verificación de Consistencia
