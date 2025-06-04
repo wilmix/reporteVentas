@@ -1,0 +1,71 @@
+# Archivos de configuración sensibles
+db_config.ini
+
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Archivos de Python generados
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Archivos de datos y outputs
+data/**/output/
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.zip
+
+# Excepciones - mantener estructura de carpetas pero no los archivos
+!data/
+!data/**/
+!data/**/.gitkeep
+
+# Logs
+*.log
+logs/
+log/
+
+# Archivos temporales
+.temp/
+.tmp/
+tmp/
+temp/
+
+# Archivos de IDE/editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Otros archivos y directorios
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
