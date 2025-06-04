@@ -5,6 +5,39 @@ Módulo para comparación de facturas SIAT vs Inventario y reporte de discrepanc
 import pandas as pd
 from ventas_plus.branch_normalization import normalize_branch_code
 
+def normalize_factura_num(val):
+    """
+    Normaliza números de factura eliminando espacios, ceros a la izquierda y decimales.
+    """
+    try:
+        if pd.isna(val):
+            return ''
+            
+        # Convertir a string y limpiar espacios
+        val_str = str(val).strip()
+        
+        # Manejar caso especial de .0
+        if val_str == '.0':
+            return '0'
+            
+        # Si es un número decimal, convertirlo a entero
+        if '.' in val_str:
+            num = int(float(val_str))
+            return str(num)
+            
+        # Para números enteros o strings numéricos
+        # Quitar ceros a la izquierda
+        normalized = val_str.lstrip('0')
+        if normalized == '' or normalized == '.':
+            return '0'
+        return normalized
+    except Exception:
+        # Si no es numérico, quitar espacios y ceros a la izquierda
+        normalized = str(val).strip().lstrip('0')
+        if normalized == '' or normalized == '.':
+            return '0'
+        return normalized
+
 def compare_siat_with_inventory(siat_data, inventory_data):
     """
     Comparar facturas del SIAT con las del sistema de inventarios.
@@ -99,14 +132,7 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         comparison['nfactura_siat'] = pd.to_numeric(comparison['nfactura_siat'], errors='coerce')
         comparison['nfactura_inv'] = pd.to_numeric(comparison['nfactura_inv'], errors='coerce')
         comparison['nit_siat'] = comparison['nit_siat'].astype(str).str.strip()
-        comparison['nit_inv'] = comparison['nit_inv'].astype(str).str.strip()
-        def normalize_branch_code(code):
-            if code is None or pd.isna(code):
-                return ''
-            normalized = str(code).strip().lstrip('0')
-            if normalized == '':
-                return '0'
-            return normalized
+        comparison['nit_inv'] = comparison['nit_inv'].astype(str).str.strip()        # Usando la función importada de branch_normalization.py
         comparison['sucursal_siat_norm'] = comparison['sucursal_siat'].apply(normalize_branch_code)
         comparison['sucursal_inv_norm'] = comparison['sucursal_inv'].apply(normalize_branch_code)
         comparison['estado_inv'] = comparison['estado_inv'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
@@ -161,26 +187,34 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         if pd.isna(row.get('fechaFac')) or str(row.get('SECTOR', '')) == '02':
             return row['OBSERVACIONES']
         obs = []
+        # Normalizar número de factura para comparar como string sin decimales
+        nfact_siat = normalize_factura_num(row.get('Nº DE LA FACTURA', None))
+        nfact_inv = normalize_factura_num(row.get('nFactura', None))
+        if nfact_siat != nfact_inv:
+            obs.append(f"Nº Factura: SIAT={nfact_siat}, INV={nfact_inv}")
+        # Normalizar sucursal para comparar (sin decimales, sin ceros a la izquierda)
+        suc_siat = normalize_branch_code(row.get('SUCURSAL', ''))
+        suc_inv = normalize_branch_code(row.get('codigoSucursal', ''))
+        if suc_siat != suc_inv:
+            obs.append(f"Sucursal: SIAT={suc_siat}, INV={suc_inv}")
+        # Comparar fecha
         if str(row.get('FECHA DE LA FACTURA', '')) != str(row.get('fechaFac', '')):
             obs.append(f"Fecha: SIAT={row.get('FECHA DE LA FACTURA','')}, INV={row.get('fechaFac','')}")
-        if str(row.get('Nº DE LA FACTURA', '')) != str(row.get('nFactura', '')):
-            obs.append(f"Nº Factura: SIAT={row.get('Nº DE LA FACTURA','')}, INV={row.get('nFactura','')}")
+        # Comparar NIT
         if str(row.get('NIT / CI CLIENTE', '')).strip() != str(row.get('nit', '')).strip():
             obs.append(f"NIT: SIAT={row.get('NIT / CI CLIENTE','')}, INV={row.get('nit','')}")
+        # Comparar importe
         siat_importe = pd.to_numeric(row.get('IMPORTE TOTAL DE LA VENTA', 0), errors='coerce')
         inv_importe = pd.to_numeric(row.get('importeTotal', 0), errors='coerce')
         if abs(siat_importe - inv_importe) > 0.01:
             obs.append(f"Importe: SIAT={siat_importe}, INV={inv_importe}")
+        # Comparar estado
         siat_estado = str(row.get('ESTADO', ''))
         inv_estado = str(row.get('estado', ''))
         if inv_estado in ['V', 'A']:
             inv_estado = 'VALIDA' if inv_estado == 'V' else 'ANULADA'
         if siat_estado != inv_estado:
             obs.append(f"Estado: SIAT={siat_estado}, INV={inv_estado}")
-        suc_siat = normalize_branch_code(row.get('SUCURSAL', ''))
-        suc_inv = normalize_branch_code(row.get('codigoSucursal', ''))
-        if suc_siat != suc_inv:
-            obs.append(f"Sucursal: SIAT={row.get('SUCURSAL','')}, INV={row.get('codigoSucursal','')}")
         if obs:
             return (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + '; '.join(obs)
         return row['OBSERVACIONES']
