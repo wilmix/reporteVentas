@@ -135,10 +135,10 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         missing_in_inv_df = missing_in_inv_df.drop_duplicates(subset=['autorizacion'], keep='first')
         
         # Debug: Imprimir información después de la transformación
-        print("\nDebug - Después de la transformación:")
-        print(f"Columnas en missing_in_inv_df: {missing_in_inv_df.columns.tolist()}")
-        print(f"Número de filas: {len(missing_in_inv_df)}")
-        print(f"Número de autorizaciones únicas: {missing_in_inv_df['autorizacion'].nunique()}")
+        # print("\nDebug - Después de la transformación:")
+        # print(f"Columnas en missing_in_inv_df: {missing_in_inv_df.columns.tolist()}")
+        # print(f"Número de filas: {len(missing_in_inv_df)}")
+        # print(f"Número de autorizaciones únicas: {missing_in_inv_df['autorizacion'].nunique()}")
         
         # Para facturas no encontradas en SIAT
         missing_in_siat_df = inventory_data[~inventory_data['autorizacion'].isin(siat_auths)].copy()
@@ -242,8 +242,8 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         
         # Agregar facturas que no están en inventario
         if len(missing_in_inv_df) > 0:
-            print(f"Facturas no encontradas en inventario: {len(missing_in_inv_df)}")
-            print(f"Autorizaciones únicas: {len(missing_in_inv_df['autorizacion'].unique())}")
+            # print(f"Facturas no encontradas en inventario: {len(missing_in_inv_df)}")
+            # print(f"Autorizaciones únicas: {len(missing_in_inv_df['autorizacion'].unique())}")
             # Asegurar que no hay duplicados y que tenemos la información más completa
             missing_in_inv_df = missing_in_inv_df.sort_values(
                 by=['fecha_siat', 'nfactura_siat', 'nit_siat'], 
@@ -256,17 +256,17 @@ def compare_siat_with_inventory(siat_data, inventory_data):
             
         # Agregar facturas que no están en SIAT
         if len(missing_in_siat_df) > 0:
-            print(f"Facturas no encontradas en SIAT: {len(missing_in_siat_df)}")
-            print(f"Autorizaciones únicas: {len(missing_in_siat_df['autorizacion'].unique())}")
+            # print(f"Facturas no encontradas en SIAT: {len(missing_in_siat_df)}")
+            # print(f"Autorizaciones únicas: {len(missing_in_siat_df['autorizacion'].unique())}")
             # Asegurar que no hay duplicados
             missing_in_siat_df = missing_in_siat_df.drop_duplicates(subset=['autorizacion'])
             all_discrepancies.append(missing_in_siat_df)
         
         # Concatenar todas las discrepancias y asegurar que no hay duplicados finales
         if all_discrepancies:
-            print("Antes de concat:")
-            for i, df in enumerate(all_discrepancies):
-                print(f"DataFrame {i+1}: {len(df)} filas, {df['autorizacion'].nunique()} autorizaciones únicas")
+            # print("Antes de concat:")
+            # for i, df in enumerate(all_discrepancies):
+            #     print(f"DataFrame {i+1}: {len(df)} filas, {df['autorizacion'].nunique()} autorizaciones únicas")
                 
             results['comparison_dataframe'] = pd.concat(all_discrepancies, ignore_index=True)
             
@@ -279,7 +279,7 @@ def compare_siat_with_inventory(siat_data, inventory_data):
                 keep='first'
             )
             
-            print(f"\nDespués de concat y limpieza final: {len(results['comparison_dataframe'])} filas, {results['comparison_dataframe']['autorizacion'].nunique()} autorizaciones únicas")
+            # print(f"\nDespués de concat y limpieza final: {len(results['comparison_dataframe'])} filas, {results['comparison_dataframe']['autorizacion'].nunique()} autorizaciones únicas")
         else:
             results['comparison_dataframe'] = pd.DataFrame()
             

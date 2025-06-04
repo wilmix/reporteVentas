@@ -635,7 +635,10 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         
     # Procesar datos del SIAT
     siat_processed = process_sales_data(siat_data)
-    
+
+    # Mostrar resumen de ventas SIAT antes de comparar con inventario
+    generar_reporte_ventas(siat_processed)
+
     # Obtener configuración de la base de datos y conectar
     try:
         db_params = get_db_config(config_file_path)
@@ -681,6 +684,26 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
 
         # Exportar archivo de verificación completa (todas las facturas SIAT con observaciones)
         if 'verificacion_completa' in comparison_results:
+            df = comparison_results['verificacion_completa']
+            # Asegurarse de que las columnas necesarias existen
+            if all(col in df.columns for col in ['SECTOR', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA', 'SUCURSAL']):
+                # ORDENAR ANTES DE EXPORTAR: primero alquileres (SECTOR==02), luego ventas (SECTOR!=02)
+                # Alquileres: SECTOR == '02'
+                alquileres = df[df['SECTOR'] == '02'].copy()
+                alquileres = alquileres.sort_values(by=['FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True])
+                # Ventas: SECTOR != '02'
+                ventas = df[df['SECTOR'] != '02'].copy()
+                # Sucursal puede tener valores como '0', '5', '6', aseguramos tipo str->int->str para orden correcto
+                ventas['SUCURSAL_ORD'] = ventas['SUCURSAL'].astype(str).str.lstrip('0').replace('', '0').astype(int)
+                ventas = ventas.sort_values(by=['SUCURSAL_ORD', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True, True])
+                ventas = ventas.drop(columns=['SUCURSAL_ORD'])
+                # Concatenar
+                df_ordenado = pd.concat([alquileres, ventas], ignore_index=True)
+                # Renumerar la columna 'Nº' después de ordenar y antes de exportar
+                if 'Nº' in df_ordenado.columns:
+                    df_ordenado['Nº'] = range(1, len(df_ordenado) + 1)
+                comparison_results['verificacion_completa'] = df_ordenado
+            # Si falta alguna columna, exportar sin ordenar especial
             verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
             comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=';')
             print(f"Archivo de verificación completa guardado en: {verif_path}")
@@ -715,3 +738,77 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         else:
             print("No se encontraron discrepancias para exportar.")
         return comparison_results
+
+def generar_reporte_ventas(df):
+    """
+    Genera e imprime un reporte resumen de ventas a partir del DataFrame del SIAT.
+    """
+    def fmt(val):
+        return f"{val:,.2f}" if isinstance(val, (int, float)) else val
+
+    # === ALQUILERES ===
+    df_alq = df[df["SECTOR"] == '02']
+    total_alquileres = df_alq[df_alq["ESTADO"] == 'VALIDA']["IMPORTE TOTAL DE LA VENTA"].sum()
+    facturas_alq_validas = len(df_alq[df_alq["ESTADO"] == 'VALIDA'])
+    facturas_alq_anuladas = len(df_alq[df_alq["ESTADO"] == 'ANULADA'])
+
+    # === TOTALES GENERALES ===
+    df_validas = df[df["ESTADO"] == "VALIDA"]
+    total_ventas_validas = df_validas["IMPORTE TOTAL DE LA VENTA"].sum()
+    total_ventas_sin_alquiler = total_ventas_validas - total_alquileres
+
+    # === SUCURSAL CENTRAL (0000) ===
+    df_central = df[df['SUCURSAL'] == '0000']
+    df_central_validas_cv = df_central[(df_central['ESTADO'] == 'VALIDA') & (df_central['SECTOR'] == '01')]
+    df_central_validas_cvb = df_central[(df_central['ESTADO'] == 'VALIDA') & (df_central['SECTOR'] == '35')]
+    df_central_anuladas = df_central[df_central['ESTADO'] == 'ANULADA']
+    total_central = df_central_validas_cv["IMPORTE TOTAL DE LA VENTA"].sum() + df_central_validas_cvb["IMPORTE TOTAL DE LA VENTA"].sum()
+
+    # === SUCURSAL POTOSÍ (0006) ===
+    df_potosi = df[df['SUCURSAL'] == '0006']
+    df_potosi_validas = df_potosi[(df_potosi['ESTADO'] == 'VALIDA') & (df_potosi['SECTOR'] == '01')]
+    df_potosi_anuladas = df_potosi[(df_potosi['ESTADO'] == 'ANULADA') & (df_potosi['SECTOR'] == '01')]
+    total_potosi = df_potosi_validas["IMPORTE TOTAL DE LA VENTA"].sum()
+
+    # === SUCURSAL SANTA CRUZ (0005) ===
+    df_scz = df[df['SUCURSAL'] == '0005']
+    df_scz_validas = df_scz[(df_scz['ESTADO'] == 'VALIDA') & (df_scz['SECTOR'] == '01')]
+    df_scz_anuladas = df_scz[(df_scz['ESTADO'] == 'ANULADA') & (df_scz['SECTOR'] == '01')]
+    total_scz = df_scz_validas["IMPORTE TOTAL DE LA VENTA"].sum()
+
+    # === RESUMEN DE FACTURAS ===
+    total_facturas_validas = len(df[df['ESTADO'] == 'VALIDA'])
+    total_facturas_anuladas = len(df[df['ESTADO'] == 'ANULADA'])
+    total_facturas = len(df)
+
+    print("\n--- REPORTE DE VENTAS ---\n")
+    print("=== ALQUILERES ===")
+    print(f"Total Alquileres: {fmt(total_alquileres)}")
+    print(f"Facturas Válidas: {facturas_alq_validas}")
+    print(f"Facturas Anuladas: {facturas_alq_anuladas}\n")
+
+    print("=== TOTALES GENERALES ===")
+    print(f"Total Ventas Válidas: {fmt(total_ventas_validas)}")
+    print(f"Total Ventas sin Alquiler: {fmt(total_ventas_sin_alquiler)}\n")
+
+    print("=== SUCURSAL CENTRAL (0000) ===")
+    print(f"Total Ventas: {fmt(total_central)}")
+    print(f"Facturas Válidas CV: {len(df_central_validas_cv)}")
+    print(f"Facturas Válidas CVB: {len(df_central_validas_cvb)}")
+    print(f"Facturas Anuladas: {len(df_central_anuladas)}\n")
+
+    print("=== SUCURSAL POTOSÍ (0006) ===")
+    print(f"Total Ventas: {fmt(total_potosi)}")
+    print(f"Facturas Válidas: {len(df_potosi_validas)}")
+    print(f"Facturas Anuladas: {len(df_potosi_anuladas)}\n")
+
+    print("=== SUCURSAL SANTA CRUZ (0005) ===")
+    print(f"Total Ventas: {fmt(total_scz)}")
+    print(f"Facturas Válidas: {len(df_scz_validas)}")
+    print(f"Facturas Anuladas: {len(df_scz_anuladas)}\n")
+
+    print("=== RESUMEN DE FACTURAS ===")
+    print(f"Total Facturas Válidas: {total_facturas_validas}")
+    print(f"Total Facturas Anuladas: {total_facturas_anuladas}")
+    print(f"Total Facturas: {total_facturas}\n")
+    print("--- Ventas Application Finished ---\n")
