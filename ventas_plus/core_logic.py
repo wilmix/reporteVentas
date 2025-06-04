@@ -685,8 +685,7 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
             comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=';')
             print(f"Archivo de verificación completa guardado en: {verif_path}")
 
-        # Unificar discrepancias en un solo DataFrame
-        discrepancias = []
+        # Unificar discrepancias en un solo DataFrame SOLO desde el comparison_dataframe
         columns_to_export = [
             'autorizacion',
             'fecha_siat', 'fecha_inv',
@@ -699,56 +698,20 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
             'sucursal_siat_norm', 'sucursal_inv_norm',
             'OBSERVACIONES'
         ]
-
-        # 1. Discrepancias de campos (ya tienen OBSERVACIONES)
         if 'comparison_dataframe' in comparison_results:
             comparison_df = comparison_results['comparison_dataframe']
-            discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'] != '']
+            # Filtrar solo discrepancias (OBSERVACIONES no vacío)
+            discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'].astype(str).str.strip() != '']
+            # Eliminar duplicados por autorizacion (mantener la fila más informativa)
+            discrepancias_df = discrepancias_df.sort_values(
+                by=['fecha_siat', 'nfactura_siat', 'nit_siat'], na_position='last'
+            ).drop_duplicates(subset=['autorizacion'], keep='first')
             if not discrepancias_df.empty:
-                discrepancias.extend(discrepancias_df[columns_to_export].to_dict('records'))
-
-        # 2. Facturas en SIAT pero no en inventarios
-        if comparison_results['missing_in_inventory']:
-            for row in comparison_results['missing_in_inventory']:
-                discrepancias.append({
-                    'autorizacion': row.get('CODIGO DE AUTORIZACIÓN', ''),
-                    'fecha_siat': '', 'fecha_inv': '',
-                    'nfactura_siat': '', 'nfactura_inv': '',
-                    'nit_siat': '', 'nit_inv': '',
-                    'importe_siat': row.get('IMPORTE TOTAL DE LA VENTA', ''),
-                    'importe_inv': '',
-                    'diferencia_importe': '',
-                    'estado_siat': row.get('ESTADO', ''), 'estado_inv': '',
-                    'sucursal_siat': '', 'sucursal_inv': '',
-                    'sucursal_siat_norm': '', 'sucursal_inv_norm': '',
-                    'OBSERVACIONES': 'Factura no encontrada en sistema de inventarios'
-                })
-
-        # 3. (Opcional) Facturas en inventarios pero no en SIAT
-        # Si quieres incluirlas, descomenta este bloque:
-        # if comparison_results['missing_in_siat']:
-        #     for row in comparison_results['missing_in_siat']:
-        #         discrepancias.append({
-        #             'autorizacion': row.get('autorizacion', ''),
-        #             'fecha_siat': '', 'fecha_inv': '',
-        #             'nfactura_siat': '', 'nfactura_inv': '',
-        #             'nit_siat': '', 'nit_inv': '',
-        #             'razon_social_siat': '', 'razon_social_inv': '',
-        #             'importe_siat': '',
-        #             'importe_inv': row.get('importeTotal', ''),
-        #             'diferencia_importe': '',
-        #             'estado_siat': '', 'estado_inv': row.get('estado', ''),
-        #             'sucursal_siat': '', 'sucursal_inv': '',
-        #             'sucursal_siat_norm': '', 'sucursal_inv_norm': '',
-        #             'OBSERVACIONES': 'Factura no encontrada en SIAT'
-        #         })
-
-        # Exportar el archivo único de discrepancias
-        if discrepancias:
-            discrepancias_df = pd.DataFrame(discrepancias)
-            discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
-            discrepancias_df.to_csv(discrepancias_path, index=False, sep=';')
-            print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
+                discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
+                discrepancias_df[columns_to_export].to_csv(discrepancias_path, index=False, sep=';')
+                print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
+            else:
+                print("No se encontraron discrepancias para exportar.")
         else:
             print("No se encontraron discrepancias para exportar.")
         return comparison_results

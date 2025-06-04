@@ -88,6 +88,66 @@ def compare_siat_with_inventory(siat_data, inventory_data):
     if len(matching_auths) > 0:
         siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
         inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
+        
+        # Preparar DataFrames para discrepancias
+        # Para facturas no encontradas en inventario
+        missing_in_inv_df = siat_no_alquileres[~siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(inventory_auths)].copy()
+        
+        # Primero hacer el renombre de columnas
+        missing_in_inv_df.rename(columns={
+            'CODIGO DE AUTORIZACIÓN': 'autorizacion',
+            'FECHA DE LA FACTURA': 'fecha_siat',
+            'Nº DE LA FACTURA': 'nfactura_siat',
+            'NIT / CI CLIENTE': 'nit_siat',
+            'IMPORTE TOTAL DE LA VENTA': 'importe_siat',
+            'ESTADO': 'estado_siat',
+            'SUCURSAL': 'sucursal_siat'
+        }, inplace=True)
+
+        # Luego agregar las columnas nuevas
+        missing_in_inv_df['OBSERVACIONES'] = 'Factura no encontrada en sistema de inventarios'
+        missing_in_inv_df['diferencia_importe'] = missing_in_inv_df['importe_siat']
+        missing_in_inv_df['sucursal_siat_norm'] = missing_in_inv_df['sucursal_siat'].apply(normalize_branch_code)
+        missing_in_inv_df['sucursal_inv_norm'] = ''
+        missing_in_inv_df['fecha_inv'] = None
+        missing_in_inv_df['nfactura_inv'] = None
+        missing_in_inv_df['nit_inv'] = None
+        missing_in_inv_df['importe_inv'] = None
+        missing_in_inv_df['estado_inv'] = None
+        missing_in_inv_df['sucursal_inv'] = None
+
+        # Y finalmente eliminar duplicados basados en autorización antes de agregarlo a all_discrepancies
+        missing_in_inv_df = missing_in_inv_df.drop_duplicates(subset=['autorizacion'], keep='first')
+        
+        # Debug: Imprimir información después de la transformación
+        print("\nDebug - Después de la transformación:")
+        print(f"Columnas en missing_in_inv_df: {missing_in_inv_df.columns.tolist()}")
+        print(f"Número de filas: {len(missing_in_inv_df)}")
+        print(f"Número de autorizaciones únicas: {missing_in_inv_df['autorizacion'].nunique()}")
+        
+        # Para facturas no encontradas en SIAT
+        missing_in_siat_df = inventory_data[~inventory_data['autorizacion'].isin(siat_auths)].copy()
+        missing_in_siat_df['OBSERVACIONES'] = 'Factura no encontrada en SIAT'
+        missing_in_siat_df.rename(columns={
+            'fechaFac': 'fecha_inv',
+            'nFactura': 'nfactura_inv',
+            'nit': 'nit_inv',
+            'importeTotal': 'importe_inv',
+            'estado': 'estado_inv',
+            'codigoSucursal': 'sucursal_inv'
+        }, inplace=True)
+        # Agregar columnas faltantes
+        missing_in_siat_df['diferencia_importe'] = -missing_in_siat_df['importe_inv']
+        missing_in_siat_df['sucursal_siat_norm'] = ''
+        missing_in_siat_df['sucursal_inv_norm'] = missing_in_siat_df['sucursal_inv'].apply(normalize_branch_code)
+        missing_in_siat_df['fecha_siat'] = None
+        missing_in_siat_df['nfactura_siat'] = None
+        missing_in_siat_df['nit_siat'] = None
+        missing_in_siat_df['importe_siat'] = None
+        missing_in_siat_df['estado_siat'] = None
+        missing_in_siat_df['sucursal_siat'] = None
+
+        # Crear DataFrame para comparación
         siat_compare = siat_matching[[
             'CODIGO DE AUTORIZACIÓN',
             'FECHA DE LA FACTURA',
@@ -162,9 +222,62 @@ def compare_siat_with_inventory(siat_data, inventory_data):
             results['amount_differences_count'] = len(differences)
             results['amount_difference'] = differences['diferencia_importe'].sum()
             results['amount_difference_details'] = differences.to_dict('records')
-        results['comparison_dataframe'] = comparison
+        # Modificar la lógica de concatenación de discrepancias
+        all_discrepancies = []
+        
+        # Agregar facturas que no están en inventario
+        if len(missing_in_inv_df) > 0:
+            print(f"Facturas no encontradas en inventario: {len(missing_in_inv_df)}")
+            print(f"Autorizaciones únicas: {len(missing_in_inv_df['autorizacion'].unique())}")
+            # Asegurar que no hay duplicados y que tenemos la información más completa
+            missing_in_inv_df = missing_in_inv_df.sort_values(
+                by=['fecha_siat', 'nfactura_siat', 'nit_siat'], 
+                na_position='last'
+            ).drop_duplicates(
+                subset=['autorizacion'], 
+                keep='first'
+            )
+            all_discrepancies.append(missing_in_inv_df)
+            
+        # Agregar facturas que no están en SIAT
+        if len(missing_in_siat_df) > 0:
+            print(f"Facturas no encontradas en SIAT: {len(missing_in_siat_df)}")
+            print(f"Autorizaciones únicas: {len(missing_in_siat_df['autorizacion'].unique())}")
+            # Asegurar que no hay duplicados
+            missing_in_siat_df = missing_in_siat_df.drop_duplicates(subset=['autorizacion'])
+            all_discrepancies.append(missing_in_siat_df)
+        
+        # Concatenar todas las discrepancias y asegurar que no hay duplicados finales
+        if all_discrepancies:
+            print("Antes de concat:")
+            for i, df in enumerate(all_discrepancies):
+                print(f"DataFrame {i+1}: {len(df)} filas, {df['autorizacion'].nunique()} autorizaciones únicas")
+                
+            results['comparison_dataframe'] = pd.concat(all_discrepancies, ignore_index=True)
+            
+            # Asegurar que no hay duplicados después de la concatenación
+            results['comparison_dataframe'] = results['comparison_dataframe'].sort_values(
+                by=['fecha_siat', 'nfactura_siat', 'nit_siat'], 
+                na_position='last'
+            ).drop_duplicates(
+                subset=['autorizacion'], 
+                keep='first'
+            )
+            
+            print(f"\nDespués de concat y limpieza final: {len(results['comparison_dataframe'])} filas, {results['comparison_dataframe']['autorizacion'].nunique()} autorizaciones únicas")
+        else:
+            results['comparison_dataframe'] = pd.DataFrame()
+            
+        # Generar detalles de diferencias de importe
+        if 'diferencia_importe' in comparison.columns:
+            differences = comparison[abs(comparison['diferencia_importe']) > 0.01]
+            if len(differences) > 0:
+                results['amount_differences_count'] = len(differences)
+                results['amount_difference'] = differences['diferencia_importe'].sum()
+                results['amount_difference_details'] = differences.to_dict('records')
+                
     # --- NUEVO: Generar DataFrame de verificación completa ---
-    # Unir SIAT con inventario (left join, todas las del SIAT)
+    # Unir SIAT con inventario (outer join, todas las facturas de ambos lados)
     siat_full = siat_data.copy()
     siat_full['autorizacion'] = siat_full['CODIGO DE AUTORIZACIÓN'].astype(str).str.strip()
     inventory_data['autorizacion'] = inventory_data['autorizacion'].astype(str).str.strip()
@@ -172,7 +285,7 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         siat_full,
         inventory_data,
         on='autorizacion',
-        how='left',
+        how='outer',  # Cambiado de 'left' a 'outer' para incluir todas las facturas
         suffixes=('_siat', '_inv')
     )
     merged['OBSERVACIONES'] = ''
@@ -182,6 +295,9 @@ def compare_siat_with_inventory(siat_data, inventory_data):
     # Marcar facturas no encontradas en inventario
     merged['OBSERVACIONES'] = merged.apply(
         lambda row: (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + 'No existe en inventarios' if pd.isna(row.get('fechaFac')) else row['OBSERVACIONES'], axis=1)
+    # Marcar facturas que están en inventario pero no en SIAT
+    merged['OBSERVACIONES'] = merged.apply(
+        lambda row: (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + 'No existe en SIAT' if pd.isna(row.get('CODIGO DE AUTORIZACIÓN')) else row['OBSERVACIONES'], axis=1)
     # Marcar discrepancias en campos (solo si existe en inventario y no es alquiler)
     def check_discrepancias(row):
         if pd.isna(row.get('fechaFac')) or str(row.get('SECTOR', '')) == '02':
