@@ -11,7 +11,8 @@ from ventas_plus.core_logic import (
     process_zipped_sales_excel,
     process_sales_data,
     analyze_sales_data_basic,
-    analyze_sales_data_detailed
+    analyze_sales_data_detailed,
+    verify_invoice_consistency
 )
 
 def get_month_year_input(month=None, year=None):
@@ -224,6 +225,30 @@ def process_sales_data_basic(project_root, month=None, year=None):
     else:
         print("No se encontraron datos de ventas o hubo un error al procesar el archivo ZIP.")
 
+def verify_invoices_consistency(project_root, month=None, year=None):
+    """
+    Verifica la consistencia entre las facturas del SIAT y el sistema de inventarios.
+    
+    Args:
+        project_root (str): Directorio raíz del proyecto
+        month (str, optional): Mes a procesar en formato '01', '02', etc.
+        year (int, optional): Año a procesar
+    """
+    # Obtener mes y año a través de entrada interactiva si no se proporcionan
+    month, year = get_month_year_input(month, year)
+    
+    # Ruta al archivo de configuración de la BD
+    config_file_path = os.path.join(project_root, "db_config.ini")
+    
+    # Verificar que el archivo de configuración existe
+    if not os.path.exists(config_file_path):
+        print(f"\nError: No se encontró el archivo de configuración {config_file_path}")
+        print("Por favor, crea el archivo con la configuración de la base de datos.")
+        return
+        
+    # Ejecutar la verificación de consistencia
+    verify_invoice_consistency(project_root, config_file_path, month, year)
+
 if __name__ == "__main__":
     print("""
 ╔══════════════════════════════════════╗
@@ -235,15 +260,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Procesar datos de ventas desde un archivo Excel comprimido.")
     parser.add_argument('-m', '--month', help='Mes a procesar en formato 01, 02, etc.', default=None)
     parser.add_argument('-y', '--year', help='Año a procesar (ej. 2025)', default=None)
+    parser.add_argument('-v', '--verify', action='store_true', help='Verificar consistencia con sistema de inventarios')
     args = parser.parse_args()
     
     project_root = os.path.dirname(os.path.abspath(__file__))
     
-    # Procesar los datos de ventas con los parámetros especificados
-    process_sales_data_basic(
-        project_root,
-        args.month,
-        args.year
-    )
+    if args.verify:
+        # Verificar consistencia entre SIAT y sistema de inventarios
+        verify_invoices_consistency(
+            project_root,
+            args.month,
+            args.year
+        )
+    else:
+        # Procesar los datos de ventas con los parámetros especificados
+        process_sales_data_basic(
+            project_root,
+            args.month,
+            args.year
+        )
     
     print("\n--- Ventas-Plus: Procesamiento Finalizado ---")

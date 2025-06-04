@@ -334,3 +334,259 @@ def analyze_sales_data_detailed(df):
     results['total_facturas_desglosado'] = total_cantidad_facturas
     
     return results
+
+def get_inventory_system_invoices(db_params, year, month):
+    """
+    Obtener facturas del sistema de inventarios para compararlas con las del SIAT.
+    
+    Args:
+        db_params (dict): Parámetros de conexión a la base de datos
+        year (int): Año a consultar
+        month (int): Mes a consultar
+        
+    Returns:
+        DataFrame: Dataframe con los datos de facturas del sistema, o None si ocurre un error
+    """
+    try:
+        # Conectar a la base de datos
+        conn = connect_to_db(db_params)
+        if conn is None:
+            return None
+            
+        # Definir la consulta SQL
+        query = """
+            SELECT
+                DATE_FORMAT(f.fechaFac, '%d/%m/%Y') fechaFac,
+                nFactura,
+                fs.cuf autorizacion,
+                f.ClienteNit nit,
+                '' complemento,
+                f.ClienteFactura razonSocial,
+                f.total importeTotal,
+                0 ICE,
+                0 IEHD,
+                0 IPJ,
+                0 tasas,
+                0 otrosNoSujetos,
+                0 excentos,
+                0 ventasTasaCero,
+                f.total subTotal,
+                0 descuentos,
+                0 gift, 
+                f.total base,
+                ROUND ((f.total * 0.13), 3) AS debito,
+                IF(anulada = 0, 'V', 'A') estado,
+                IF(codigoControl = '', 0, codigoControl) AS codigoControl,
+                0 tipoVenta,
+                a.almacen _alm,
+                '' _revision,
+                IF(df.manual = 1, 'SIAT-DESKTOP-FE', 'ONLINE') _tipoFac,
+                f.glosa _obs,
+                concat(u.first_name, ' ' , u.last_name) _autor 
+            FROM
+                factura f
+                INNER JOIN datosfactura df ON df.idDatosFactura = f.lote
+                INNER JOIN factura_siat fs ON fs.factura_id = f.idFactura
+                INNER JOIN almacenes a ON a.idalmacen = f.almacen
+                INNER JOIN tipoPago tp ON tp.id = f.tipoPago
+                INNER JOIN users u on u.id = f.autor
+            WHERE
+                year(f.fechaFac) = %s
+                AND month(f.fechaFac) = %s
+            ORDER BY
+                a.idalmacen,
+                f.fechaFac,
+                df.idDatosFactura DESC,
+                nFactura
+        """
+        
+        # Ejecutar la consulta y obtener los resultados en un DataFrame
+        print(f"Consultando facturas del sistema de inventarios para {month}/{year}...")
+        df = pd.read_sql(query, conn, params=(year, month))
+        
+        # Cerrar la conexión
+        conn.close()
+        
+        print(f"Se encontraron {len(df)} facturas en el sistema de inventarios")
+        return df
+        
+    except Exception as e:
+        print(f"Error al consultar facturas del sistema de inventarios: {e}")
+        return None
+
+def compare_siat_with_inventory(siat_data, inventory_data):
+    """
+    Comparar facturas del SIAT con las del sistema de inventarios.
+    
+    Args:
+        siat_data (DataFrame): Datos de facturas del SIAT
+        inventory_data (DataFrame): Datos de facturas del sistema de inventarios
+        
+    Returns:
+        dict: Resultados de la comparación
+    """
+    results = {
+        'total_siat': len(siat_data),
+        'total_inventory': len(inventory_data),
+        'matching_invoices': 0,
+        'missing_in_inventory': [],
+        'missing_in_siat': [],
+        'amount_difference': 0.0,
+        'amount_difference_details': []
+    }
+    
+    # Excluir facturas de alquileres del SIAT (SECTOR 02)
+    siat_no_alquileres = siat_data[siat_data['SECTOR'] != '02']
+    results['total_siat_no_alquileres'] = len(siat_no_alquileres)
+    
+    # Crear Series con autorizaciones para comparación rápida
+    siat_auths = set(siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].str.strip())
+    inventory_auths = set(inventory_data['autorizacion'].str.strip())
+    
+    # Encontrar facturas que coinciden
+    matching_auths = siat_auths.intersection(inventory_auths)
+    results['matching_invoices'] = len(matching_auths)
+    
+    # Encontrar facturas que están en SIAT pero no en inventario
+    missing_in_inventory = siat_auths - inventory_auths
+    results['missing_in_inventory_count'] = len(missing_in_inventory)
+    
+    if len(missing_in_inventory) > 0:
+        missing_df = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(missing_in_inventory)]
+        results['missing_in_inventory'] = missing_df[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO']].to_dict('records')
+    
+    # Encontrar facturas que están en inventario pero no en SIAT
+    missing_in_siat = inventory_auths - siat_auths
+    results['missing_in_siat_count'] = len(missing_in_siat)
+    
+    if len(missing_in_siat) > 0:
+        missing_df = inventory_data[inventory_data['autorizacion'].isin(missing_in_siat)]
+        results['missing_in_siat'] = missing_df[['autorizacion', 'importeTotal', 'estado']].to_dict('records')
+    
+    # Verificar diferencias en montos para facturas que coinciden
+    if len(matching_auths) > 0:
+        # Preparar DataFrames para comparación
+        siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
+        inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
+        
+        # Crear DataFrames con solo las columnas necesarias
+        siat_compare = siat_matching[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA']].copy()
+        inventory_compare = inventory_matching[['autorizacion', 'importeTotal']].copy()
+        
+        # Renombrar columnas para facilitar la comparación
+        siat_compare.rename(columns={'CODIGO DE AUTORIZACIÓN': 'autorizacion', 'IMPORTE TOTAL DE LA VENTA': 'importe_siat'}, inplace=True)
+        inventory_compare.rename(columns={'importeTotal': 'importe_inventory'}, inplace=True)
+        
+        # Combinar DataFrames para comparación
+        comparison = pd.merge(siat_compare, inventory_compare, on='autorizacion')
+        
+        # Calcular diferencias
+        comparison['diferencia'] = comparison['importe_siat'] - comparison['importe_inventory']
+        
+        # Filtrar solo los que tienen diferencias significativas (más de 0.01)
+        differences = comparison[abs(comparison['diferencia']) > 0.01]
+        
+        if len(differences) > 0:
+            results['amount_differences_count'] = len(differences)
+            results['amount_difference'] = differences['diferencia'].sum()
+            results['amount_difference_details'] = differences.to_dict('records')
+    
+    return results
+
+def verify_invoice_consistency(project_root, config_file_path, month, year, export_results=True):
+    """
+    Verificar consistencia entre facturas del SIAT y del sistema de inventarios.
+    
+    Args:
+        project_root (str): Directorio raíz del proyecto
+        config_file_path (str): Ruta al archivo de configuración de la BD
+        month (int): Mes a procesar
+        year (int): Año a procesar
+        export_results (bool): Si es True, exporta los resultados a un archivo CSV
+        
+    Returns:
+        dict: Resultados de la verificación
+    """
+    print("\n--- Verificando consistencia de facturas ---")
+    
+    # Formatear mes con cero a la izquierda
+    formatted_month = f"{int(month):02d}"
+    
+    # Obtener datos del SIAT
+    zip_file_name = f"{formatted_month}VentasXlsx.zip"
+    zip_file_path = os.path.join(project_root, "data", str(year), zip_file_name)
+    
+    if not os.path.exists(zip_file_path):
+        print(f"\nError: No se encontró el archivo {zip_file_name} del SIAT")
+        return None
+        
+    print(f"Procesando archivo del SIAT: {zip_file_path}")
+    siat_data = process_zipped_sales_excel(zip_file_path, sheet_name="hoja1")
+    
+    if siat_data is None or siat_data.empty:
+        print("No se encontraron datos del SIAT o hubo un error al procesar el archivo")
+        return None
+        
+    # Procesar datos del SIAT
+    siat_processed = process_sales_data(siat_data)
+    
+    # Obtener configuración de la base de datos y conectar
+    try:
+        db_params = get_db_config(config_file_path)
+    except Exception as e:
+        print(f"Error al obtener la configuración de la base de datos: {e}")
+        return None
+    
+    # Consultar datos del sistema de inventarios
+    inventory_data = get_inventory_system_invoices(db_params, year, int(month))
+    
+    if inventory_data is None or inventory_data.empty:
+        print("No se encontraron datos en el sistema de inventarios o hubo un error en la consulta")
+        return None
+        
+    # Comparar los datos
+    print("\nComparando datos del SIAT con el sistema de inventarios...")
+    comparison_results = compare_siat_with_inventory(siat_processed, inventory_data)
+    
+    # Mostrar resultados
+    print("\n=== RESULTADOS DE LA VERIFICACIÓN ===")
+    print(f"Facturas en SIAT: {comparison_results['total_siat']}")
+    print(f"Facturas en SIAT (excluyendo alquileres): {comparison_results['total_siat_no_alquileres']}")
+    print(f"Facturas en sistema de inventarios: {comparison_results['total_inventory']}")
+    print(f"Facturas coincidentes: {comparison_results['matching_invoices']}")
+    
+    if comparison_results['missing_in_inventory_count'] > 0:
+        print(f"\nFacturas en SIAT pero no en inventarios: {comparison_results['missing_in_inventory_count']}")
+        
+    if comparison_results['missing_in_siat_count'] > 0:
+        print(f"\nFacturas en inventarios pero no en SIAT: {comparison_results['missing_in_siat_count']}")
+        
+    if 'amount_differences_count' in comparison_results and comparison_results['amount_differences_count'] > 0:
+        print(f"\nFacturas con diferencias de montos: {comparison_results['amount_differences_count']}")
+        print(f"Diferencia total: {comparison_results['amount_difference']:,.2f}")
+    
+    # Exportar resultados si se solicita
+    if export_results:
+        output_dir = os.path.join(project_root, "data", "output")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Crear un DataFrame con las diferencias
+        if comparison_results['missing_in_inventory']:
+            missing_inv_df = pd.DataFrame(comparison_results['missing_in_inventory'])
+            missing_inv_path = os.path.join(output_dir, f"missing_in_inventory_{formatted_month}_{year}.csv")
+            missing_inv_df.to_csv(missing_inv_path, index=False)
+            print(f"\nFacturas faltantes en inventarios guardadas en: {missing_inv_path}")
+            
+        if comparison_results['missing_in_siat']:
+            missing_siat_df = pd.DataFrame(comparison_results['missing_in_siat'])
+            missing_siat_path = os.path.join(output_dir, f"missing_in_siat_{formatted_month}_{year}.csv")
+            missing_siat_df.to_csv(missing_siat_path, index=False)
+            print(f"Facturas faltantes en SIAT guardadas en: {missing_siat_path}")
+            
+        if 'amount_difference_details' in comparison_results and comparison_results['amount_difference_details']:
+            diff_df = pd.DataFrame(comparison_results['amount_difference_details'])
+            diff_path = os.path.join(output_dir, f"amount_differences_{formatted_month}_{year}.csv")
+            diff_df.to_csv(diff_path, index=False)
+            print(f"Diferencias de montos guardadas en: {diff_path}")
+    
+    return comparison_results
