@@ -583,7 +583,7 @@ def get_inventory_system_invoices(db_params, year, month):
 #                     'observaciones': "; ".join(observaciones)
 #                 })
         
-        # Calcular diferencias en montos (igual que antes)
+#         # Calcular diferencias en montos (igual que antes)
 #         comparison['diferencia_importe'] = comparison['importe_siat'] - comparison['importe_inv']
         
 #         # Filtrar solo los que tienen diferencias significativas en montos (más de 0.01)
@@ -678,6 +678,12 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
     if export_results:
         output_dir = os.path.join(project_root, "data", "output")
         os.makedirs(output_dir, exist_ok=True)
+
+        # Exportar archivo de verificación completa (todas las facturas SIAT con observaciones)
+        if 'verificacion_completa' in comparison_results:
+            verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
+            comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=';')
+            print(f"Archivo de verificación completa guardado en: {verif_path}")
 
         # Unificar discrepancias en un solo DataFrame
         discrepancias = []

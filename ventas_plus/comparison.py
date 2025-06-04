@@ -3,6 +3,7 @@ Módulo para comparación de facturas SIAT vs Inventario y reporte de discrepanc
 """
 
 import pandas as pd
+from ventas_plus.branch_normalization import normalize_branch_code
 
 def compare_siat_with_inventory(siat_data, inventory_data):
     """
@@ -136,4 +137,53 @@ def compare_siat_with_inventory(siat_data, inventory_data):
             results['amount_difference'] = differences['diferencia_importe'].sum()
             results['amount_difference_details'] = differences.to_dict('records')
         results['comparison_dataframe'] = comparison
+    # --- NUEVO: Generar DataFrame de verificación completa ---
+    # Unir SIAT con inventario (left join, todas las del SIAT)
+    siat_full = siat_data.copy()
+    siat_full['autorizacion'] = siat_full['CODIGO DE AUTORIZACIÓN'].astype(str).str.strip()
+    inventory_data['autorizacion'] = inventory_data['autorizacion'].astype(str).str.strip()
+    merged = pd.merge(
+        siat_full,
+        inventory_data,
+        on='autorizacion',
+        how='left',
+        suffixes=('_siat', '_inv')
+    )
+    merged['OBSERVACIONES'] = ''
+    # Marcar facturas de alquiler
+    merged['OBSERVACIONES'] = merged.apply(
+        lambda row: 'Factura de alquiler (SECTOR 02)' if str(row.get('SECTOR', '')) == '02' else '', axis=1)
+    # Marcar facturas no encontradas en inventario
+    merged['OBSERVACIONES'] = merged.apply(
+        lambda row: (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + 'No existe en inventarios' if pd.isna(row.get('fechaFac')) else row['OBSERVACIONES'], axis=1)
+    # Marcar discrepancias en campos (solo si existe en inventario y no es alquiler)
+    def check_discrepancias(row):
+        if pd.isna(row.get('fechaFac')) or str(row.get('SECTOR', '')) == '02':
+            return row['OBSERVACIONES']
+        obs = []
+        if str(row.get('FECHA DE LA FACTURA', '')) != str(row.get('fechaFac', '')):
+            obs.append(f"Fecha: SIAT={row.get('FECHA DE LA FACTURA','')}, INV={row.get('fechaFac','')}")
+        if str(row.get('Nº DE LA FACTURA', '')) != str(row.get('nFactura', '')):
+            obs.append(f"Nº Factura: SIAT={row.get('Nº DE LA FACTURA','')}, INV={row.get('nFactura','')}")
+        if str(row.get('NIT / CI CLIENTE', '')).strip() != str(row.get('nit', '')).strip():
+            obs.append(f"NIT: SIAT={row.get('NIT / CI CLIENTE','')}, INV={row.get('nit','')}")
+        siat_importe = pd.to_numeric(row.get('IMPORTE TOTAL DE LA VENTA', 0), errors='coerce')
+        inv_importe = pd.to_numeric(row.get('importeTotal', 0), errors='coerce')
+        if abs(siat_importe - inv_importe) > 0.01:
+            obs.append(f"Importe: SIAT={siat_importe}, INV={inv_importe}")
+        siat_estado = str(row.get('ESTADO', ''))
+        inv_estado = str(row.get('estado', ''))
+        if inv_estado in ['V', 'A']:
+            inv_estado = 'VALIDA' if inv_estado == 'V' else 'ANULADA'
+        if siat_estado != inv_estado:
+            obs.append(f"Estado: SIAT={siat_estado}, INV={inv_estado}")
+        suc_siat = normalize_branch_code(row.get('SUCURSAL', ''))
+        suc_inv = normalize_branch_code(row.get('codigoSucursal', ''))
+        if suc_siat != suc_inv:
+            obs.append(f"Sucursal: SIAT={row.get('SUCURSAL','')}, INV={row.get('codigoSucursal','')}")
+        if obs:
+            return (row['OBSERVACIONES'] + '; ' if row['OBSERVACIONES'] else '') + '; '.join(obs)
+        return row['OBSERVACIONES']
+    merged['OBSERVACIONES'] = merged.apply(check_discrepancias, axis=1)
+    results['verificacion_completa'] = merged
     return results
