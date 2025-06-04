@@ -125,7 +125,7 @@ def process_sales_data_basic(project_root, month=None, year=None):
     else:
         print("No se encontraron datos de ventas o hubo un error al procesar el archivo ZIP.")
 
-def verify_invoices_consistency(project_root, month=None, year=None):
+def verify_invoices_consistency(project_root, month=None, year=None, print_discrepancias=True):
     """
     Verifica la consistencia entre las facturas del SIAT y el sistema de inventarios.
     
@@ -147,7 +147,7 @@ def verify_invoices_consistency(project_root, month=None, year=None):
         return
         
     # Ejecutar la verificación de consistencia
-    verify_invoice_consistency(project_root, config_file_path, month, year)
+    verify_invoice_consistency(project_root, config_file_path, month, year, print_discrepancias=print_discrepancias)
 
 if __name__ == "__main__":
     print("""
@@ -170,7 +170,8 @@ if __name__ == "__main__":
         verify_invoices_consistency(
             project_root,
             args.month,
-            args.year
+            args.year,
+            print_discrepancias=True
         )
     else:
         # Procesar los datos de ventas con los parámetros especificados

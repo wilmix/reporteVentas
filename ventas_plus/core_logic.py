@@ -599,7 +599,7 @@ def get_inventory_system_invoices(db_params, year, month):
     
 #     return results
 
-def verify_invoice_consistency(project_root, config_file_path, month, year, export_results=True):
+def verify_invoice_consistency(project_root, config_file_path, month, year, export_results=True, print_discrepancias=True):
     """
     Verificar consistencia entre facturas del SIAT y del sistema de inventarios.
     
@@ -677,6 +677,13 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
     if 'field_discrepancies' in comparison_results and comparison_results['field_discrepancies']:
         print(f"\nFacturas con discrepancias en campos: {len(comparison_results['field_discrepancies'])}")
     
+    # Mostrar detalle de discrepancias en consola si corresponde
+    if print_discrepancias and 'comparison_dataframe' in comparison_results:
+        comparison_df = comparison_results['comparison_dataframe']
+        discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'].astype(str).str.strip() != '']
+        if not discrepancias_df.empty:
+            imprimir_discrepancias_consola(discrepancias_df)
+    
     # Exportar resultados si se solicita
     if export_results:
         output_dir = os.path.join(project_root, "data", "output")
@@ -738,6 +745,26 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         else:
             print("No se encontraron discrepancias para exportar.")
         return comparison_results
+
+def imprimir_discrepancias_consola(discrepancias_df):
+    """
+    Imprime en consola un resumen detallado y amigable de las discrepancias encontradas.
+    """
+    if discrepancias_df.empty:
+        print("No se encontraron discrepancias relevantes.")
+        return
+    print("\n=== DETALLE DE DISCREPANCIAS ENCONTRADAS ===\n")
+    for idx, row in discrepancias_df.iterrows():
+        print(f"CUF: {row.get('autorizacion','')}")
+        print(f"  Nº Factura: {row.get('nfactura_siat') or row.get('nfactura_inv') or ''}")
+        print(f"  Fecha: {row.get('fecha_siat') or row.get('fecha_inv') or ''}")
+        print(f"  Cliente (NIT): {row.get('nit_siat') or row.get('nit_inv') or ''}")
+        print(f"  Monto: SIAT={row.get('importe_siat') if not pd.isna(row.get('importe_siat')) else '-'} | INV={row.get('importe_inv') if not pd.isna(row.get('importe_inv')) else '-'}")
+        print(f"  Estado: SIAT={row.get('estado_siat') or '-'} | INV={row.get('estado_inv') or '-'}")
+        print(f"  Sucursal: SIAT={row.get('sucursal_siat') or '-'} | INV={row.get('sucursal_inv') or '-'}")
+        print(f"  Sector: {row.get('sucursal_siat_norm') or row.get('sucursal_inv_norm') or '-'}")
+        print(f"  Observaciones: {row.get('OBSERVACIONES','')}")
+        print("-"*60)
 
 def generar_reporte_ventas(df):
     """
