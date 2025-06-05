@@ -232,17 +232,20 @@ A partir de junio 2025, el cuadro comparativo SIAT vs Inventario se divide en **
 - **Cuadro 1: Totales en montos**
   - Muestra los totales monetarios por sucursal, alquileres, total inventario y total general.
   - Incluye columna de conciliación (✔/❌) para comparar montos SIAT vs Inventario.
+  - La columna **DIFERENCIA** solo se muestra si existe al menos una diferencia distinta de cero; si todos los valores son cero, la columna se oculta para mayor claridad visual.
   - Las filas de ALQUILERES y TOTAL GENERAL no muestran check, ya que no son comparables.
 
 - **Cuadro 2: Totales de número de facturas**
   - Muestra la cantidad de facturas válidas y anuladas por sucursal, alquileres, total inventario y total general.
   - Incluye columna de conciliación (✔/❌) para comparar cantidades SIAT vs Inventario.
+  - Las columnas **DIF VAL** y **DIF ANU** solo se muestran si existe al menos una diferencia distinta de cero en la cantidad de válidas o anuladas, respectivamente; si todos los valores son cero, esas columnas se ocultan.
   - Las filas de ALQUILERES y TOTAL GENERAL no muestran check.
 
 **Ventajas de la nueva presentación:**
 - Permite comparar de forma independiente los montos y las cantidades de facturas.
 - Mejora la legibilidad y la auditoría visual.
 - Mantiene la lógica robusta de separación de alquileres y normalización de sucursales/estados.
+- Oculta columnas de diferencia innecesarias cuando no hay discrepancias, haciendo el reporte más limpio y fácil de leer.
 
 Estos cambios facilitan la revisión y conciliación entre SIAT e Inventario, permitiendo detectar rápidamente diferencias tanto en montos como en cantidades.
 
