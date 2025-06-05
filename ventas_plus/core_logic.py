@@ -711,8 +711,17 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
                     df_ordenado['Nº'] = range(1, len(df_ordenado) + 1)
                 comparison_results['verificacion_completa'] = df_ordenado
             # Si falta alguna columna, exportar sin ordenar especial
+            # Ensure NIT/CI and invoice number fields are string before export (remove .0)
+            str_cols = [
+                col for col in [
+                    'nit_siat', 'nit_inv', 'NIT / CI CLIENTE', 'NIT',
+                    'Nº DE LA FACTURA', 'nfactura_siat', 'nfactura_inv', 'nFactura'
+                ] if col in comparison_results['verificacion_completa'].columns
+            ]
+            for col in str_cols:
+                comparison_results['verificacion_completa'][col] = comparison_results['verificacion_completa'][col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
-            comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=';')
+            comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=',')
             print(f"Archivo de verificación completa guardado en: {verif_path}")
 
         # Unificar discrepancias en un solo DataFrame SOLO desde el comparison_dataframe
@@ -737,8 +746,17 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
                 by=['fecha_siat', 'nfactura_siat', 'nit_siat'], na_position='last'
             ).drop_duplicates(subset=['autorizacion'], keep='first')
             if not discrepancias_df.empty:
+                # Ensure NIT/CI and invoice number fields are string before export (remove .0)
+                str_cols = [
+                    col for col in [
+                        'nit_siat', 'nit_inv', 'NIT / CI CLIENTE', 'NIT',
+                        'Nº DE LA FACTURA', 'nfactura_siat', 'nfactura_inv', 'nFactura'
+                    ] if col in discrepancias_df.columns
+                ]
+                for col in str_cols:
+                    discrepancias_df[col] = discrepancias_df[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                 discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
-                discrepancias_df[columns_to_export].to_csv(discrepancias_path, index=False, sep=';')
+                discrepancias_df[columns_to_export].to_csv(discrepancias_path, index=False, sep=',')
                 print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
             else:
                 print("No se encontraron discrepancias para exportar.")
