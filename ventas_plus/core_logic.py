@@ -700,7 +700,6 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
                 alquileres = alquileres.sort_values(by=['FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True])
                 # Ventas: SECTOR != '02'
                 ventas = df[df['SECTOR'] != '02'].copy()
-                # Sucursal puede tener valores como '0', '5', '6', aseguramos tipo str->int->str para orden correcto
                 ventas['SUCURSAL_ORD'] = ventas['SUCURSAL'].astype(str).str.lstrip('0').replace('', '0').astype(int)
                 ventas = ventas.sort_values(by=['SUCURSAL_ORD', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True, True])
                 ventas = ventas.drop(columns=['SUCURSAL_ORD'])
@@ -709,19 +708,23 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
                 # Renumerar la columna 'Nº' después de ordenar y antes de exportar
                 if 'Nº' in df_ordenado.columns:
                     df_ordenado['Nº'] = range(1, len(df_ordenado) + 1)
-                comparison_results['verificacion_completa'] = df_ordenado
-            # Si falta alguna columna, exportar sin ordenar especial
-            # Ensure NIT/CI and invoice number fields are string before export (remove .0)
-            str_cols = [
-                col for col in [
-                    'nit_siat', 'nit_inv', 'NIT / CI CLIENTE', 'NIT',
-                    'Nº DE LA FACTURA', 'nfactura_siat', 'nfactura_inv', 'nFactura'
-                ] if col in comparison_results['verificacion_completa'].columns
-            ]
-            for col in str_cols:
-                comparison_results['verificacion_completa'][col] = comparison_results['verificacion_completa'][col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                df_export = df_ordenado.copy()
+            else:
+                # Si falta alguna columna, exportar sin ordenar especial
+                df_export = df.copy()
+            # --- FILTRAR Y ORDENAR COLUMNAS ANTES DE EXPORTAR ---
+            # Agregar columnas faltantes como vacías
+            for col in REQUIRED_VERIFICACION_COLUMNS:
+                if col not in df_export.columns:
+                    df_export[col] = ''
+            # Seleccionar y reordenar columnas
+            df_export = df_export[REQUIRED_VERIFICACION_COLUMNS]
+            # Normalizar NIT/CI y Nº DE LA FACTURA como string sin .0
+            for col in ['NIT / CI CLIENTE', 'Nº DE LA FACTURA']:
+                if col in df_export.columns:
+                    df_export[col] = df_export[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
-            comparison_results['verificacion_completa'].to_csv(verif_path, index=False, sep=',')
+            df_export.to_csv(verif_path, index=False, sep=',')
             print(f"Archivo de verificación completa guardado en: {verif_path}")
 
         # Unificar discrepancias en un solo DataFrame SOLO desde el comparison_dataframe
@@ -746,23 +749,36 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
                 by=['fecha_siat', 'nfactura_siat', 'nit_siat'], na_position='last'
             ).drop_duplicates(subset=['autorizacion'], keep='first')
             if not discrepancias_df.empty:
-                # Ensure NIT/CI and invoice number fields are string before export (remove .0)
-                str_cols = [
-                    col for col in [
-                        'nit_siat', 'nit_inv', 'NIT / CI CLIENTE', 'NIT',
-                        'Nº DE LA FACTURA', 'nfactura_siat', 'nfactura_inv', 'nFactura'
-                    ] if col in discrepancias_df.columns
-                ]
-                for col in str_cols:
-                    discrepancias_df[col] = discrepancias_df[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                df_export = comparison_results['verificacion_completa'].copy()
+                # Asegurar que todas las columnas existen (si falta alguna, agregarla vacía)
+                for col in REQUIRED_VERIFICACION_COLUMNS:
+                    if col not in df_export.columns:
+                        df_export[col] = ''
+                # Filtrar y reordenar
+                df_export = df_export[REQUIRED_VERIFICACION_COLUMNS]
+                # Normalizar NIT/CI y Nº DE LA FACTURA como string sin .0
+                for col in ['NIT / CI CLIENTE', 'Nº DE LA FACTURA']:
+                    if col in df_export.columns:
+                        df_export[col] = df_export[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                 discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
-                discrepancias_df[columns_to_export].to_csv(discrepancias_path, index=False, sep=',')
+                df_export.to_csv(discrepancias_path, index=False, sep=',')
                 print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
             else:
                 print("No se encontraron discrepancias para exportar.")
         else:
             print("No se encontraron discrepancias para exportar.")
         return comparison_results
+
+# === CONSTANTE: Columnas requeridas para el archivo de verificación completa ===
+REQUIRED_VERIFICACION_COLUMNS = [
+    'Nº', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA', 'CODIGO DE AUTORIZACIÓN', 'NIT / CI CLIENTE',
+    'COMPLEMENTO', 'NOMBRE O RAZON SOCIAL', 'IMPORTE TOTAL DE LA VENTA', 'IMPORTE ICE', 'IMPORTE IEHD',
+    'IMPORTE IPJ', 'TASAS', 'OTROS NO SUJETOS AL IVA', 'EXPORTACIONES Y OPERACIONES EXENTAS',
+    'VENTAS GRAVADAS A TASA CERO', 'SUBTOTAL', 'DESCUENTOS BONIFICACIONES Y REBAJAS SUJETAS AL IVA',
+    'IMPORTE GIFT CARD', 'IMPORTE BASE PARA DEBITO FISCAL', 'DEBITO FISCAL', 'ESTADO', 'CODIGO DE CONTROL',
+    'TIPO DE VENTA', 'CON DERECHO A CREDITO FISCAL', 'ESTADO CONSOLIDACION', 'SUCURSAL', 'MODALIDAD',
+    'TIPO EMISION', 'TIPO FACTURA', 'SECTOR', '_obs', '_autor', 'OBSERVACIONES'
+]
 
 def imprimir_discrepancias_consola(discrepancias_df):
     """
