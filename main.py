@@ -152,6 +152,21 @@ def verify_invoices_consistency(project_root, month=None, year=None, print_discr
         
     # Ejecutar la verificación de consistencia
     verify_invoice_consistency(project_root, config_file_path, month, year, print_discrepancias=print_discrepancias)
+    
+    # Mostrar cuadro comparativo SIAT vs Inventario
+    from ventas_plus.core_logic import mostrar_cuadro_comparativo_verificacion
+    import pandas as pd
+    output_dir = os.path.join(project_root, 'data', 'output')
+    formatted_month = f"{int(month):02d}"
+    verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
+    if os.path.exists(verif_path):
+        df_siat = pd.read_csv(verif_path)
+        # Consultar inventario
+        from ventas_plus.db_utils import get_db_config, get_inventory_system_invoices
+        db_params = get_db_config(config_file_path)
+        df_inv = get_inventory_system_invoices(db_params, int(year), int(month))
+        if df_inv is not None and not df_inv.empty:
+            mostrar_cuadro_comparativo_verificacion(df_siat, df_inv)
 
 def comparar_con_hergo(project_root, year, month, siat_df):
     """

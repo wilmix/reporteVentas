@@ -13,6 +13,7 @@ import mysql.connector
 import warnings
 import contextlib
 from ventas_plus.comparison import compare_siat_with_inventory
+from ventas_plus.report_comparativo import resumen_totales_y_cantidades, mostrar_cuadro_comparativo_siatsysinv
 
 @contextlib.contextmanager
 def suppress_openpyxl_warnings():
@@ -889,3 +890,26 @@ def mostrar_comparacion_siat_hergo(comparacion):
     for row in comparacion:
         print(f"{row['sucursal']:<12} | {row['total_siat']:>15,.2f} | {row['total_hergo']:>15,.2f} | {row['diferencia']:>12,.2f} | {row['estado']:>6}")
     print("-"*68)
+
+def mostrar_cuadro_comparativo_verificacion(df_siat, df_inv):
+    """
+    Muestra un cuadro comparativo SIAT vs Inventario (totales, válidas, anuladas) tras la verificación.
+    Incluye una fila especial para ALQUILERES (SECTOR 02 en SIAT).
+    """
+    from ventas_plus.branch_normalization import normalize_branch_code
+    suc_map = {'0000': 'CENTRAL', '0005': 'SANTA CRUZ', '0006': 'POTOSI'}
+    # --- Normalizar SIAT ---
+    df_siat = df_siat.copy()
+    df_siat['SUCURSAL'] = df_siat['SUCURSAL'].apply(lambda x: str(x).zfill(4))
+    # Excluir alquileres de las sucursales normales (ventas)
+    df_siat_ventas = df_siat[df_siat['SECTOR'].astype(str).str.zfill(2) != '02']
+    res_siat = resumen_totales_y_cantidades(df_siat_ventas, 'SIAT', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO', 'SECTOR', 'SUCURSAL')
+    # --- Preprocesar inventario ---
+    df_inv = df_inv.copy()
+    df_inv['estado'] = df_inv['estado'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
+    if 'SECTOR' not in df_inv.columns:
+        df_inv['SECTOR'] = '01'  # No hay sector real, pero así la función no falla
+    df_inv['codigoSucursal'] = df_inv['codigoSucursal'].apply(lambda x: str(x).zfill(4))
+    res_inv = resumen_totales_y_cantidades(df_inv, 'INVENTARIO', 'importeTotal', 'estado', 'SECTOR', 'codigoSucursal')
+    # Pasar el DataFrame SIAT original para que la fila ALQUILERES se calcule correctamente y no se dupliquen en sucursal CENTRAL
+    mostrar_cuadro_comparativo_siatsysinv(res_siat, res_inv, suc_map, df_siat_original=df_siat)

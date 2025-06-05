@@ -225,6 +225,32 @@ GENERAL      |    2,915,885.31 |    2,915,885.31 |        0.00  |   OK
 --------------------------------------------------------------------
 ```
 
+## Cambios recientes en el cuadro comparativo SIAT vs Inventario (junio 2025)
+
+A partir de la versión de junio 2025, el cuadro comparativo SIAT vs Inventario incluye las siguientes mejoras:
+
+- **Columna de conciliación (CONCILIACIÓN):**
+  - Se muestra un check (✔) o una cruz (❌) por sucursal y en el total de inventario, indicando si los totales y cantidades coinciden entre SIAT e Inventario.
+  - La columna se titula ahora "CONCILIACIÓN" para mayor claridad.
+
+- **Separación de ALQUILERES:**
+  - Las ventas de sector 02 (ALQUILERES) se muestran siempre en una fila aparte, con sus propios totales y cantidades.
+  - ALQUILERES no se suman en los totales de sucursal ni en el total de inventario, evitando doble conteo.
+
+- **Totales claros y sin check en filas especiales:**
+  - La fila "TOTAL INV" muestra la suma de todas las sucursales (sin alquileres) y sí incluye la conciliación.
+  - Las filas "ALQUILERES" y "TOTAL GENERAL" (suma de inventario + alquileres) **no muestran el check de conciliación**, ya que nunca serán iguales por definición.
+
+- **Normalización robusta:**
+  - Los códigos de sucursal y estados se normalizan para evitar errores de comparación.
+  - El filtrado de sector es robusto a formatos como '2', 2, '02', etc.
+
+- **Visualización mejorada:**
+  - Separadores y alineación mejorada para facilitar la lectura.
+  - Indicadores visuales claros para conciliación.
+
+Estos cambios mejoran la claridad y utilidad del reporte, facilitando la auditoría y el control de ventas entre SIAT e Inventario.
+
 ## Barra de estado amigable durante la consulta a Hergo
 
 A partir de la versión 2025-06, al generar el comparativo SIAT vs Hergo, el sistema muestra una barra de progreso amigable en consola mientras consulta los totales al sistema de inventarios (Hergo). Esto ayuda a que el usuario sepa que el proceso está en curso y puede demorar unos segundos.
