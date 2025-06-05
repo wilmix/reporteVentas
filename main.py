@@ -8,6 +8,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import argparse
 from dotenv import load_dotenv
+from ventas_plus.barra_progreso import barra_progreso
+import time
 
 from ventas_plus.core_logic import (
     process_zipped_sales_excel,
@@ -120,7 +122,7 @@ def process_sales_data_basic(project_root, month=None, year=None):
         
         # Solo mostrar el reporte resumen, no info de columnas ni análisis básico
         generar_reporte_ventas(siat_df)
-        
+        print("\n--- CONSULTANDO AL SISTEMA DE INVENTARIOS (HERGO) ---")
         # --- Comparar SIAT vs Hergo automáticamente ---
         comparar_con_hergo(project_root, int(year), int(month), siat_df)
         
@@ -170,17 +172,23 @@ def comparar_con_hergo(project_root, year, month, siat_df):
         return
     # Totales Hergo por sucursal
     hergo_totales = {}
-    for nombre, cod in {'CENTRAL': 0, 'SANTA CRUZ': 5, 'POTOSI': 6}.items():
+    sucursales = list({'CENTRAL': 0, 'SANTA CRUZ': 5, 'POTOSI': 6}.items()) + [('GENERAL', None)]
+    total = len(sucursales)
+    barra_len = 60  # barra más grande
+    # Mostrar barra de progreso desde el inicio
+    for idx, (nombre, cod) in enumerate(sucursales, 1):
+        barra = "█" * int(barra_len * idx / total) + "-" * (barra_len - int(barra_len * idx / total))
+        sys.stdout.write(f"\rConsultando reporte de ventas Hergo |{barra}| {nombre:10s}   ")
+        sys.stdout.flush()
         res = hergo_api.get_sales_totals(year, month, cod)
         if res.get('total') is None:
-            print(f"[ERROR] Hergo: No se pudo obtener total para {nombre}: {res.get('error','Sin detalle')}")
+            print(f"\n[ERROR] Hergo: No se pudo obtener total para {nombre}: {res.get('error','Sin detalle')}")
         hergo_totales[nombre] = res.get('total')
-    # Total general Hergo
-    res = hergo_api.get_sales_totals(year, month, None)
-    if res.get('total') is None:
-        print(f"[ERROR] Hergo: No se pudo obtener total general: {res.get('error','Sin detalle')}")
-    hergo_totales['GENERAL'] = res.get('total')
+        time.sleep(0.2)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
     # Comparar
+    print("Procesando comparación SIAT vs Hergo...")
     comparacion = compare_sales_totals(siat_totales, hergo_totales)
     mostrar_comparacion_siat_hergo(comparacion)
 

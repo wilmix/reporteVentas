@@ -225,6 +225,12 @@ GENERAL      |    2,915,885.31 |    2,915,885.31 |        0.00  |   OK
 --------------------------------------------------------------------
 ```
 
+## Barra de estado amigable durante la consulta a Hergo
+
+A partir de la versión 2025-06, al generar el comparativo SIAT vs Hergo, el sistema muestra una barra de progreso amigable en consola mientras consulta los totales al sistema de inventarios (Hergo). Esto ayuda a que el usuario sepa que el proceso está en curso y puede demorar unos segundos.
+
+No requiere instalar dependencias adicionales, la barra es nativa y funciona en cualquier terminal.
+
 ### Solución de problemas con la API Hergo
 
 Si la API Hergo no responde con un JSON válido (por ejemplo, devuelve HTML de error, mensaje vacío, etc.), el sistema imprime la respuesta cruda para ayudar a depurar. Posibles causas:

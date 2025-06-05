@@ -876,12 +876,13 @@ def generar_reporte_ventas(df):
     print(f"Total Facturas Válidas: {total_facturas_validas}")
     print(f"Total Facturas Anuladas: {total_facturas_anuladas}")
     print(f"Total Facturas: {total_facturas}\n")
-    print("--- Ventas Application Finished ---\n")
+    print("--- Reporte de Ventas SIAT terminado ---\n")
 
 def mostrar_comparacion_siat_hergo(comparacion):
     """
     Muestra en consola la comparación SIAT vs Hergo en formato tabla.
     """
+
     print("\n--- COMPARATIVO SIAT vs HERGO ---\n")
     print(f"{'Sucursal':<12} | {'Total SIAT':>15} | {'Total Hergo':>15} | {'Diferencia':>12} | {'Estado':>6}")
     print("-"*68)
