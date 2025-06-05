@@ -1,5 +1,6 @@
 # Archivos de configuración sensibles
 db_config.ini
+.env
 
 # Entorno virtual
 venv/

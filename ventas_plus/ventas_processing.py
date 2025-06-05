@@ -71,3 +71,31 @@ def analyze_sales_data_basic(df):
 def analyze_sales_data_detailed(df):
     # Puedes copiar aquí la función completa si lo deseas
     pass
+
+def get_siat_sales_totals(df):
+    """
+    Calcula los totales de ventas SIAT por sucursal y general, usando la misma lógica que el reporte principal:
+    - CENTRAL: suma sector 01 y 35
+    - SANTA CRUZ y POTOSI: solo sector 01
+    - GENERAL: suma todas las ventas válidas excepto sector 02 (alquileres)
+    Retorna: dict con claves por sucursal y 'GENERAL'.
+    """
+    sucursales = {
+        'CENTRAL': '0000',
+        'SANTA CRUZ': '0005',
+        'POTOSI': '0006',
+    }
+    totales = {}
+    # CENTRAL: sector 01 y 35
+    cod = sucursales['CENTRAL']
+    total_central = df[(df['SUCURSAL'] == cod) & (df['ESTADO'] == 'VALIDA') & (df['SECTOR'].isin(['01', '35']))]['IMPORTE TOTAL DE LA VENTA'].sum()
+    totales['CENTRAL'] = float(total_central)
+    # SANTA CRUZ y POTOSI: solo sector 01
+    for nombre in ['SANTA CRUZ', 'POTOSI']:
+        cod = sucursales[nombre]
+        total = df[(df['SUCURSAL'] == cod) & (df['ESTADO'] == 'VALIDA') & (df['SECTOR'] == '01')]['IMPORTE TOTAL DE LA VENTA'].sum()
+        totales[nombre] = float(total)
+    # GENERAL: todas las ventas válidas excepto sector 02
+    total_general = df[(df['ESTADO'] == 'VALIDA') & (df['SECTOR'] != '02')]['IMPORTE TOTAL DE LA VENTA'].sum()
+    totales['GENERAL'] = float(total_general)
+    return totales

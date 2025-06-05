@@ -192,6 +192,52 @@ Los archivos generados por la verificación de consistencia contienen los siguie
 5. **discrepancias_MM_YYYY.csv**:
    - Contiene los mismos campos que el archivo de verificación completa, pero incluye únicamente las facturas que presentan discrepancias en alguno de los campos comparados.
 
+## Comparación SIAT vs Hergo (API externa)
+
+A partir de la versión 2025-06, el sistema compara automáticamente los totales de ventas SIAT con los reportados por la API de Hergo para cada sucursal y el total general. El resultado se muestra en consola en formato tabla, indicando si los totales coinciden (OK) o hay diferencias (ERROR).
+
+> **Nota importante:**
+> La lógica de cálculo de los totales SIAT y Hergo es **idéntica** a la del reporte principal:
+> - **CENTRAL (0000):** Suma todas las ventas válidas de sector 01 y sector 35.
+> - **SANTA CRUZ (0005) y POTOSÍ (0006):** Suma solo las ventas válidas de sector 01.
+> - **GENERAL:** Suma todas las ventas válidas de todas las sucursales, excluyendo únicamente alquileres (sector 02).
+> 
+> Los totales mostrados en la tabla comparativa SIAT vs Hergo coinciden exactamente con los del reporte principal para cada sucursal y el total general.
+
+### Características:
+- Consulta automática a la API Hergo por sucursal y general.
+- Comparación de totales SIAT vs Hergo por sucursal y general.
+- Visualización clara en consola con estado OK/ERROR.
+- Depuración: si la API Hergo responde con error o un formato inesperado, el sistema imprime la respuesta cruda para facilitar el diagnóstico.
+
+### Ejemplo de salida:
+
+```
+--- COMPARATIVO SIAT vs HERGO ---
+
+Sucursal     |      Total SIAT |     Total Hergo |   Diferencia | Estado
+--------------------------------------------------------------------
+
+CENTRAL      |    1,184,244.32 |    1,184,244.32 |        0.00  |   OK
+SANTA CRUZ   |    1,479,069.80 |    1,479,069.80 |        0.00  |   OK
+POTOSI       |      252,571.19 |      252,571.19 |        0.00  |   OK
+GENERAL      |    2,915,885.31 |    2,915,885.31 |        0.00  |   OK
+--------------------------------------------------------------------
+```
+
+### Solución de problemas con la API Hergo
+
+Si la API Hergo no responde con un JSON válido (por ejemplo, devuelve HTML de error, mensaje vacío, etc.), el sistema imprime la respuesta cruda para ayudar a depurar. Posibles causas:
+- La API está caída o no disponible.
+- Requiere autenticación o headers especiales.
+- El endpoint cambió o hay restricciones de red.
+- Demasiadas consultas seguidas (rate limit).
+
+**Acción recomendada:**
+- Revisa el contenido impreso en consola para identificar el problema.
+- Verifica manualmente la URL y los parámetros en un navegador o con Postman/curl.
+- Si la API requiere autenticación, consulta con el administrador del sistema Hergo.
+
 ## Solución de Problemas
 
 ### Problemas Comunes
@@ -203,6 +249,49 @@ Los archivos generados por la verificación de consistencia contienen los siguie
 2. **No se encuentran archivos ZIP**:
    - Verifique que el archivo ZIP del SIAT está en la carpeta correcta (`data/YYYY/MMVentasXlsx.zip`)
    - Asegúrese de ingresar el mes y año correctos
+
+## Configuración de credenciales Hergo (seguridad)
+
+### Variables de entorno con archivo `.env`
+
+Para mayor seguridad, las credenciales de Hergo **no deben estar en el código ni en archivos versionados**. Usa un archivo `.env` en la raíz del proyecto (no lo subas a git):
+
+```
+HERGO_USER=tu_usuario@hergo.com.bo
+HERGO_PASS=tu_contraseña
+```
+
+Puedes guiarte por el archivo `.env.example` incluido.
+
+Luego, el sistema las cargará automáticamente si tienes instalada la librería `python-dotenv` (ya incluida en `requirements.txt`)
+
+**Importante:**
+- El archivo `.env` debe estar en tu `.gitignore`.
+- Nunca subas tus credenciales reales al repositorio.
+
+No necesitas cambiar nada en el código: solo crea el `.env` y asegúrate de tener la librería instalada.
+
+---
+
+### Alternativa: variables de entorno en consola
+
+También puedes definirlas temporalmente en la terminal antes de ejecutar el script:
+
+**Windows (CMD):**
+```
+set HERGO_USER=tu_usuario@hergo.com.bo
+set HERGO_PASS=tu_contraseña
+python main.py -m MM -y YYYY
+```
+
+**Linux/Mac (bash):**
+```
+export HERGO_USER=tu_usuario@hergo.com.bo
+export HERGO_PASS=tu_contraseña
+python main.py -m MM -y YYYY
+```
+
+---
 
 ## Licencia
 

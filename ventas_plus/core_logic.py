@@ -818,6 +818,9 @@ def generar_reporte_ventas(df):
     total_ventas_validas = df_validas["IMPORTE TOTAL DE LA VENTA"].sum()
     total_ventas_sin_alquiler = total_ventas_validas - total_alquileres
 
+    # Calcular total sector 01 (igual que comparación SIAT vs Hergo)
+    total_ventas_validas_sector01 = df[(df['ESTADO'] == 'VALIDA') & (df['SECTOR'] == '01')]["IMPORTE TOTAL DE LA VENTA"].sum()
+
     # === SUCURSAL CENTRAL (0000) ===
     df_central = df[df['SUCURSAL'] == '0000']
     df_central_validas_cv = df_central[(df_central['ESTADO'] == 'VALIDA') & (df_central['SECTOR'] == '01')]
@@ -850,7 +853,8 @@ def generar_reporte_ventas(df):
 
     print("=== TOTALES GENERALES ===")
     print(f"Total Ventas Válidas: {fmt(total_ventas_validas)}")
-    print(f"Total Ventas sin Alquiler: {fmt(total_ventas_sin_alquiler)}\n")
+    print(f"Total Ventas sin Alquiler: {fmt(total_ventas_sin_alquiler)}")
+    print(f"Total Ventas Válidas sector 01: {fmt(total_ventas_validas_sector01)}\n")
 
     print("=== SUCURSAL CENTRAL (0000) ===")
     print(f"Total Ventas: {fmt(total_central)}")
@@ -873,3 +877,14 @@ def generar_reporte_ventas(df):
     print(f"Total Facturas Anuladas: {total_facturas_anuladas}")
     print(f"Total Facturas: {total_facturas}\n")
     print("--- Ventas Application Finished ---\n")
+
+def mostrar_comparacion_siat_hergo(comparacion):
+    """
+    Muestra en consola la comparación SIAT vs Hergo en formato tabla.
+    """
+    print("\n--- COMPARATIVO SIAT vs HERGO ---\n")
+    print(f"{'Sucursal':<12} | {'Total SIAT':>15} | {'Total Hergo':>15} | {'Diferencia':>12} | {'Estado':>6}")
+    print("-"*68)
+    for row in comparacion:
+        print(f"{row['sucursal']:<12} | {row['total_siat']:>15,.2f} | {row['total_hergo']:>15,.2f} | {row['diferencia']:>12,.2f} | {row['estado']:>6}")
+    print("-"*68)

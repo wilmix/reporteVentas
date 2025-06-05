@@ -356,3 +356,23 @@ def compare_siat_with_inventory(siat_data, inventory_data):
     merged['OBSERVACIONES'] = merged.apply(check_discrepancias, axis=1)
     results['verificacion_completa'] = merged
     return results
+
+def compare_sales_totals(siat_totals, hergo_totals, tolerance=0.01):
+    """
+    Compara los totales SIAT y Hergo por sucursal y general.
+    Devuelve lista de dicts con sucursal, total_siat, total_hergo, diferencia, estado.
+    """
+    results = []
+    for key in sorted(siat_totals.keys()):
+        siat = siat_totals.get(key, 0) or 0
+        hergo = hergo_totals.get(key, 0) or 0
+        diferencia = siat - hergo
+        estado = 'OK' if abs(diferencia) <= tolerance else 'ERROR'
+        results.append({
+            'sucursal': key,
+            'total_siat': siat,
+            'total_hergo': hergo,
+            'diferencia': diferencia,
+            'estado': estado
+        })
+    return results

@@ -7,15 +7,23 @@ import sys
 import pandas as pd
 from datetime import datetime, timedelta
 import argparse
+from dotenv import load_dotenv
+
 from ventas_plus.core_logic import (
     process_zipped_sales_excel,
     process_sales_data,
     analyze_sales_data_basic,
     analyze_sales_data_detailed,
     verify_invoice_consistency,
-    generar_reporte_ventas
+    generar_reporte_ventas,
+    mostrar_comparacion_siat_hergo
 )
-from ventas_plus.comparison import compare_siat_with_inventory
+from ventas_plus.comparison import compare_siat_with_inventory, compare_sales_totals
+from ventas_plus.hergo_api import get_hergo_sales_totals
+from ventas_plus.ventas_processing import get_siat_sales_totals
+
+# Cargar variables de entorno desde .env
+load_dotenv()
 
 def get_month_year_input(month=None, year=None):
     """
@@ -104,23 +112,17 @@ def process_sales_data_basic(project_root, month=None, year=None):
     sales_data = process_zipped_sales_excel(zip_file_path, sheet_name="hoja1")
     
     if sales_data is not None and not sales_data.empty:
-        # Definir directorio de salida
-        output_dir = os.path.join(project_root, "data", "output")
-        os.makedirs(output_dir, exist_ok=True)
-        
         print(f"Recuperados con éxito {len(sales_data)} registros de ventas.")
         print("Procesando datos de ventas...")
         
         # Procesar los datos de ventas
-        df_processed = process_sales_data(sales_data)
+        siat_df = process_sales_data(sales_data)
         
         # Solo mostrar el reporte resumen, no info de columnas ni análisis básico
-        generar_reporte_ventas(df_processed)
+        generar_reporte_ventas(siat_df)
         
-        # Guardar una copia del DataFrame procesado para uso futuro
-        output_file = os.path.join(output_dir, f"ventas_procesadas_{month}_{year}.csv")
-        df_processed.to_csv(output_file, index=False)
-        print(f"\nDatos procesados guardados en: {output_file}")
+        # --- Comparar SIAT vs Hergo automáticamente ---
+        comparar_con_hergo(project_root, int(year), int(month), siat_df)
         
     else:
         print("No se encontraron datos de ventas o hubo un error al procesar el archivo ZIP.")
@@ -148,6 +150,39 @@ def verify_invoices_consistency(project_root, month=None, year=None, print_discr
         
     # Ejecutar la verificación de consistencia
     verify_invoice_consistency(project_root, config_file_path, month, year, print_discrepancias=print_discrepancias)
+
+def comparar_con_hergo(project_root, year, month, siat_df):
+    """
+    Consulta Hergo, calcula totales SIAT, compara y muestra tabla.
+    Si la consulta a Hergo falla, muestra un error pero continúa el flujo.
+    """
+    from ventas_plus.hergo_api import HergoAPI
+    # Totales SIAT
+    siat_totales = get_siat_sales_totals(siat_df)
+    # Inicializar HergoAPI (usa env vars si existen)
+    try:
+        hergo_api = HergoAPI()
+    except Exception as e:
+        print(f"[ERROR] No se pudo inicializar conexión a Hergo: {e}")
+        hergo_totales = {k: None for k in ['CENTRAL', 'SANTA CRUZ', 'POTOSI', 'GENERAL']}
+        comparacion = compare_sales_totals(siat_totales, hergo_totales)
+        mostrar_comparacion_siat_hergo(comparacion)
+        return
+    # Totales Hergo por sucursal
+    hergo_totales = {}
+    for nombre, cod in {'CENTRAL': 0, 'SANTA CRUZ': 5, 'POTOSI': 6}.items():
+        res = hergo_api.get_sales_totals(year, month, cod)
+        if res.get('total') is None:
+            print(f"[ERROR] Hergo: No se pudo obtener total para {nombre}: {res.get('error','Sin detalle')}")
+        hergo_totales[nombre] = res.get('total')
+    # Total general Hergo
+    res = hergo_api.get_sales_totals(year, month, None)
+    if res.get('total') is None:
+        print(f"[ERROR] Hergo: No se pudo obtener total general: {res.get('error','Sin detalle')}")
+    hergo_totales['GENERAL'] = res.get('total')
+    # Comparar
+    comparacion = compare_sales_totals(siat_totales, hergo_totales)
+    mostrar_comparacion_siat_hergo(comparacion)
 
 if __name__ == "__main__":
     print("""
