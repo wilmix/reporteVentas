@@ -38,6 +38,7 @@ Este documento describe la estructura oficial del archivo de **Registro de Venta
 - Todos los campos son obligatorios salvo que se indique lo contrario.
 - Los cálculos de SUBTOTAL, IMPORTE BASE PARA DÉBITO FISCAL y DÉBITO FISCAL deben seguir las fórmulas indicadas.
 - Para valores no aplicables, registrar **cero (0)** o dejar en blanco según corresponda.
+- **Nota para importación a contabilidad:** Los campos obligatorios (NOT NULL) se rellenan con 0.0 (numéricos) o '0' (strings) si no hay dato, según el tipo de campo.
 
 ---
 

@@ -323,6 +323,58 @@ python main.py -m MM -y YYYY
 
 ---
 
+## Importación mensual de verificación SIAT a contabilidad
+
+A partir de junio 2025, Ventas-Plus permite importar el archivo mensual de verificación SIAT (`verificacion_completa_MM_YYYY.csv`) al sistema contable, integrando los registros en la tabla `sales_registers` de una base de datos de contabilidad separada.
+
+### Requisitos previos
+- Archivo CSV de verificación generado por el sistema: `data/output/verificacion_completa_MM_YYYY.csv` (ver sección anterior).
+- Acceso y credenciales a la base de datos contable (ver `db_config_contabilidad.ini`).
+- Estructura de tabla `sales_registers` creada según lo documentado en `PLAN_DE_IMPORTACION_VERIFICACION.md`.
+- Dependencias instaladas (ver `requirements.txt`).
+
+### Configuración
+1. Copia y edita el archivo de configuración de la base contable:
+   - `cp db_config_contabilidad.ini.example db_config_contabilidad.ini`
+   - Completa los datos de conexión a la base de datos contable.
+2. Verifica la conexión ejecutando:
+   ```bash
+   python -m ventas_plus.db_utils_contabilidad
+   ```
+
+### Proceso de importación
+1. Ejecuta el script de importación para el mes/año deseado:
+   ```bash
+   python -m ventas_plus.importar_verificacion_contabilidad -m MM -y YYYY
+   ```
+   Donde:
+   - `MM`: Mes a importar (01-12)
+   - `YYYY`: Año a importar
+2. El script realiza:
+   - Lectura y validación del archivo CSV de verificación.
+   - Transformación y mapeo de campos según la estructura de `sales_registers`.
+   - Chequeo de duplicados: si ya existen registros para ese mes/año, la importación se aborta.
+   - Inserción masiva de los datos validados en la base contable.
+   - Reporte de errores de integridad o duplicidad, si los hubiera.
+
+### Validaciones y salvaguardas
+- Validación de tipos de datos, nulos y unicidad antes de insertar.
+- Abortado automático si ya existen registros para el período (mes/año) en la tabla destino.
+- Manejo robusto de errores y reporte en consola.
+- Documentación detallada del proceso en el propio script y en `PLAN_DE_IMPORTACION_VERIFICACION.md`.
+
+### Referencias técnicas
+- **Estructura y reglas de validación:** ver `PLAN_DE_IMPORTACION_VERIFICACION.md`.
+- **Mapeo de campos:** ver `sales_register_field_mapping.md`.
+- **Estructura SIAT:** ver `ventas_estandar_siatt.md` y `ventas_estandar_siatt.json`.
+
+### Notas adicionales
+- El proceso es repetible y seguro para ejecución mensual.
+- Se recomienda revisar los logs y mensajes en consola tras cada importación.
+- Para automatización, logging a archivo y pruebas automáticas, ver sugerencias en `PLAN_DE_IMPORTACION_VERIFICACION.md`.
+
+---
+
 ## Licencia
 
 Este proyecto está licenciado bajo los términos de la licencia MIT.

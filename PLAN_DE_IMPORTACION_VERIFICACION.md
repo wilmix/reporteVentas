@@ -34,28 +34,52 @@ CREATE TABLE `sales_registers` (
   `gift_card_amount` decimal(14,2) NOT NULL,
   `debit_tax_base_amount` decimal(14,2) NOT NULL,
   `debit_tax` decimal(14,2) NOT NULL,
-  `status` char(1) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `control_code` varchar(17) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` char(1) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'A=Anulada, V=Válida, C=Contingencia, L=Libre consignación',
+  `control_code` varchar(17) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código hexadecimal de control de factura antiguas computarizadas según SIAT',
   `sale_type` char(1) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `right_to_tax_credit` tinyint(1) NOT NULL,
   `consolidation_status` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
-  `branch_office` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `modality` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `emission_type` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `invoice_type` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `sector` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `obs` text COLLATE utf8mb4_unicode_ci,
-  `author` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `observations` text COLLATE utf8mb4_unicode_ci,
-  PRIMARY KEY (`id`)
+  `branch_office` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - issuing branch office',
+  `modality` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - issuance modality',
+  `emission_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - emission type (manual, electronic, etc.)',
+  `invoice_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - internal invoice type',
+  `sector` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - business or system sector',
+  `obs` text COLLATE utf8mb4_unicode_ci COMMENT 'Internal use - technical notes or flags',
+  `author` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Internal use - record author',
+  `observations` text COLLATE utf8mb4_unicode_ci COMMENT 'Internal use - audit notes or extra comments',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_authorization_code` (`authorization_code`),
+  CONSTRAINT `sales_registers_chk_1` CHECK ((`status` in (_utf8mb4'A',_utf8mb4'V'))),
+  CONSTRAINT `sales_registers_chk_10` CHECK ((`subtotal` >= 0)),
+  CONSTRAINT `sales_registers_chk_11` CHECK ((`discounts_bonuses_rebates_subject_to_vat` >= 0)),
+  CONSTRAINT `sales_registers_chk_12` CHECK ((`gift_card_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_13` CHECK ((`debit_tax_base_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_14` CHECK ((`debit_tax` >= 0)),
+  CONSTRAINT `sales_registers_chk_15` CHECK ((`status` in (_utf8mb4'A',_utf8mb4'V',_utf8mb4'C',_utf8mb4'L'))),
+  CONSTRAINT `sales_registers_chk_2` CHECK ((`total_sale_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_3` CHECK ((`ice_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_4` CHECK ((`iehd_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_5` CHECK ((`ipj_amount` >= 0)),
+  CONSTRAINT `sales_registers_chk_6` CHECK ((`fees` >= 0)),
+  CONSTRAINT `sales_registers_chk_7` CHECK ((`other_non_vat_items` >= 0)),
+  CONSTRAINT `sales_registers_chk_8` CHECK ((`exports_exempt_operations` >= 0)),
+  CONSTRAINT `sales_registers_chk_9` CHECK ((`zero_rate_taxed_sales` >= 0))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
 
+- El campo `authorization_code` debe ser único (UNIQUE KEY).
+- El campo `status` solo puede tener los valores 'A', 'V', 'C', 'L'.
+- Todos los importes y montos deben ser mayores o iguales a cero.
+- Los campos de uso interno (`branch_office`, `modality`, `emission_type`, `invoice_type`, `sector`, `obs`, `author`, `observations`) pueden ser nulos.
+- Los campos `created_at` y `updated_at` pueden ser nulos y pueden ser llenados automáticamente por la base de datos o el script.
+
 - Mapear los campos del CSV a los de la tabla destino.
 - Configurar un archivo de conexión separado para la nueva base de datos (por ejemplo, `db_config_contabilidad.ini`).
-- Validar los datos antes de la inserción (tipos, nulos, duplicados).
+- Validar los datos antes de la inserción (tipos, nulos, duplicados, valores permitidos y restricciones de unicidad).
+
+> **Nota importante:**
+> En la importación, todos los campos NOT NULL numéricos se rellenan con 0.0 si no hay dato, y los campos string NOT NULL se rellenan con '0' si no hay dato.
 
 ### 2. Implementación
 - Crear un módulo/función Python para:
@@ -132,7 +156,6 @@ A continuación se muestra el mapeo entre los campos del archivo CSV generado (`
 | ESTADO                                   | status                                        |
 | CÓDIGO DE CONTROL                        | control_code                                  |
 | TIPO DE VENTA                            | sale_type                                     |
-| CON DERECHO A CREDITO FISCAL             | right_to_tax_credit                           |
 | ESTADO CONSOLIDACION                     | consolidation_status                          |
 | SUCURSAL                                 | branch_office                                 |
 | MODALIDAD                                | modality                                      |

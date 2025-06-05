@@ -28,7 +28,6 @@ This table maps the English field names used in the database/system to their cor
 | status                                     | ESTADO                                              |
 | control_code                               | CÓDIGO DE CONTROL                                   |
 | sale_type                                  | TIPO DE VENTA                                       |
-| right_to_tax_credit                        | CON DERECHO A CREDITO FISCAL                        |
 | consolidation_status                       | ESTADO CONSOLIDACION                                |
 | branch_office                              | SUCURSAL                                            |
 | modality                                   | MODALIDAD                                           |
