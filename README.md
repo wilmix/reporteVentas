@@ -227,29 +227,24 @@ GENERAL      |    2,915,885.31 |    2,915,885.31 |        0.00  |   OK
 
 ## Cambios recientes en el cuadro comparativo SIAT vs Inventario (junio 2025)
 
-A partir de la versión de junio 2025, el cuadro comparativo SIAT vs Inventario incluye las siguientes mejoras:
+A partir de junio 2025, el cuadro comparativo SIAT vs Inventario se divide en **dos tablas separadas** para mayor claridad:
 
-- **Columna de conciliación (CONCILIACIÓN):**
-  - Se muestra un check (✔) o una cruz (❌) por sucursal y en el total de inventario, indicando si los totales y cantidades coinciden entre SIAT e Inventario.
-  - La columna se titula ahora "CONCILIACIÓN" para mayor claridad.
+- **Cuadro 1: Totales en montos**
+  - Muestra los totales monetarios por sucursal, alquileres, total inventario y total general.
+  - Incluye columna de conciliación (✔/❌) para comparar montos SIAT vs Inventario.
+  - Las filas de ALQUILERES y TOTAL GENERAL no muestran check, ya que no son comparables.
 
-- **Separación de ALQUILERES:**
-  - Las ventas de sector 02 (ALQUILERES) se muestran siempre en una fila aparte, con sus propios totales y cantidades.
-  - ALQUILERES no se suman en los totales de sucursal ni en el total de inventario, evitando doble conteo.
+- **Cuadro 2: Totales de número de facturas**
+  - Muestra la cantidad de facturas válidas y anuladas por sucursal, alquileres, total inventario y total general.
+  - Incluye columna de conciliación (✔/❌) para comparar cantidades SIAT vs Inventario.
+  - Las filas de ALQUILERES y TOTAL GENERAL no muestran check.
 
-- **Totales claros y sin check en filas especiales:**
-  - La fila "TOTAL INV" muestra la suma de todas las sucursales (sin alquileres) y sí incluye la conciliación.
-  - Las filas "ALQUILERES" y "TOTAL GENERAL" (suma de inventario + alquileres) **no muestran el check de conciliación**, ya que nunca serán iguales por definición.
+**Ventajas de la nueva presentación:**
+- Permite comparar de forma independiente los montos y las cantidades de facturas.
+- Mejora la legibilidad y la auditoría visual.
+- Mantiene la lógica robusta de separación de alquileres y normalización de sucursales/estados.
 
-- **Normalización robusta:**
-  - Los códigos de sucursal y estados se normalizan para evitar errores de comparación.
-  - El filtrado de sector es robusto a formatos como '2', 2, '02', etc.
-
-- **Visualización mejorada:**
-  - Separadores y alineación mejorada para facilitar la lectura.
-  - Indicadores visuales claros para conciliación.
-
-Estos cambios mejoran la claridad y utilidad del reporte, facilitando la auditoría y el control de ventas entre SIAT e Inventario.
+Estos cambios facilitan la revisión y conciliación entre SIAT e Inventario, permitiendo detectar rápidamente diferencias tanto en montos como en cantidades.
 
 ## Barra de estado amigable durante la consulta a Hergo
 
