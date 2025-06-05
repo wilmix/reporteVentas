@@ -1,0 +1,208 @@
+[
+  {
+    "numero": 1,
+    "nombre_columna": "N°",
+    "tipo_dato": "entero",
+    "longitud": 8,
+    "obligatorio": true,
+    "descripcion": "Número correlativo y secuencial del registro o fila."
+  },
+  {
+    "numero": 2,
+    "nombre_columna": "ESPECIFICACION",
+    "tipo_dato": "entero",
+    "longitud": 1,
+    "obligatorio": false,
+    "descripcion": "Valor predeterminado '2'. Solo en importación del archivo debe estar en la segunda posición."
+  },
+  {
+    "numero": 3,
+    "nombre_columna": "FECHA DE LA FACTURA",
+    "tipo_dato": "fecha",
+    "formato": "DD/MM/AAAA",
+    "longitud": 10,
+    "obligatorio": true,
+    "descripcion": "Fecha de emisión de la factura o nota fiscal."
+  },
+  {
+    "numero": 4,
+    "nombre_columna": "N° DE LA FACTURA",
+    "tipo_dato": "entero",
+    "longitud": 15,
+    "obligatorio": true,
+    "descripcion": "Número de la factura o nota fiscal."
+  },
+  {
+    "numero": 5,
+    "nombre_columna": "CÓDIGO DE AUTORIZACIÓN",
+    "tipo_dato": "alfanumérico",
+    "longitud": 15,
+    "obligatorio": true,
+    "descripcion": "Código de autorización de la factura o nota fiscal, distinto de cero."
+  },
+  {
+    "numero": 6,
+    "nombre_columna": "NIT / CI CLIENTE",
+    "tipo_dato": "alfanumérico",
+    "longitud": 15,
+    "obligatorio": true,
+    "descripcion": "NIT o documento de identidad del cliente. Usar 99001 (consulados), 99002 (control tributario), 99003 (ventas menores), o cero según corresponda."
+  },
+  {
+    "numero": 7,
+    "nombre_columna": "COMPLEMENTO",
+    "tipo_dato": "alfanumérico",
+    "longitud": 5,
+    "obligatorio": true,
+    "descripcion": "Complemento del documento de identidad. Si no existe, dejar en blanco."
+  },
+  {
+    "numero": 8,
+    "nombre_columna": "NOMBRE O RAZÓN SOCIAL",
+    "tipo_dato": "alfanumérico",
+    "longitud": 240,
+    "obligatorio": true,
+    "descripcion": "Nombre o razón social del cliente. Usar 'Sin Nombre' o 'S/N' si no existe información."
+  },
+  {
+    "numero": 9,
+    "nombre_columna": "IMPORTE TOTAL DE LA VENTA",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe total de la venta según factura, sin deducciones."
+  },
+  {
+    "numero": 10,
+    "nombre_columna": "IMPORTE ICE",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe correspondiente al ICE. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 11,
+    "nombre_columna": "IMPORTE IEHD",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe correspondiente al IEHD. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 12,
+    "nombre_columna": "IMPORTE IPJ",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe correspondiente al IPJ. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 13,
+    "nombre_columna": "TASAS",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe correspondiente a tasas. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 14,
+    "nombre_columna": "OTROS NO SUJETOS AL IVA",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Otros conceptos no sujetos al IVA. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 15,
+    "nombre_columna": "EXPORTACIONES Y OPERACIONES EXENTAS",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe de exportaciones y operaciones exentas. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 16,
+    "nombre_columna": "VENTAS GRAVADAS A TASA CERO",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe de ventas gravadas a tasa cero. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 17,
+    "nombre_columna": "SUBTOTAL",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "SUBTOTAL = IMPORTE TOTAL DE LA VENTA - IMPORTE ICE - IMPORTE IEHD - IMPORTE IPJ - TASAS - OTROS NO SUJETOS AL IVA - EXPORTACIONES Y OPERACIONES EXENTAS - VENTAS GRAVADAS A TASA CERO"
+  },
+  {
+    "numero": 18,
+    "nombre_columna": "DESCUENTOS, BONIFICACIONES Y REBAJAS SUJETAS AL IVA",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe de descuentos, bonificaciones y rebajas otorgadas. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 19,
+    "nombre_columna": "IMPORTE GIFT CARD",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "Importe de gift card. Si no aplica, registrar cero."
+  },
+  {
+    "numero": 20,
+    "nombre_columna": "IMPORTE BASE PARA DÉBITO FISCAL",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "IMPORTE BASE PARA DÉBITO FISCAL = SUBTOTAL - DESCUENTOS, BONIFICACIONES Y REBAJAS - IMPORTE GIFT CARD"
+  },
+  {
+    "numero": 21,
+    "nombre_columna": "DÉBITO FISCAL",
+    "tipo_dato": "numérico",
+    "decimales": 2,
+    "longitud": "14.2",
+    "obligatorio": true,
+    "descripcion": "DÉBITO FISCAL = IMPORTE BASE PARA DÉBITO FISCAL * 13%"
+  },
+  {
+    "numero": 22,
+    "nombre_columna": "ESTADO",
+    "tipo_dato": "carácter",
+    "longitud": 1,
+    "obligatorio": true,
+    "descripcion": "Estado de la factura: A=Anulada, V=Válida, C=Contingencia, L=Libre consignación."
+  },
+  {
+    "numero": 23,
+    "nombre_columna": "CÓDIGO DE CONTROL",
+    "tipo_dato": "alfanumérico",
+    "longitud": 17,
+    "obligatorio": true,
+    "descripcion": "Código de control (hexadecimal, pares separados por guiones). Si no aplica, registrar cero."
+  },
+  {
+    "numero": 24,
+    "nombre_columna": "TIPO DE VENTA",
+    "tipo_dato": "entero",
+    "longitud": 1,
+    "obligatorio": true,
+    "descripcion": "0=Otros, 1=Gift Card."
+  }
+]
