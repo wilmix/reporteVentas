@@ -355,6 +355,18 @@ def compare_siat_with_inventory(siat_data, inventory_data):
         return row['OBSERVACIONES']
     merged['OBSERVACIONES'] = merged.apply(check_discrepancias, axis=1)
     results['verificacion_completa'] = merged
+    # Ensure 'OBSERVACIONES' column exists in comparison_dataframe and verificacion_completa
+    for key in ['comparison_dataframe', 'verificacion_completa']:
+        if key in results:
+            df = results[key]
+            if isinstance(df, pd.DataFrame):
+                if 'OBSERVACIONES' not in df.columns:
+                    df['OBSERVACIONES'] = ''
+                # Ensure sort columns exist for downstream sort_values
+                for col in ['fecha_siat', 'nfactura_siat', 'nit_siat']:
+                    if col not in df.columns:
+                        df[col] = None
+                results[key] = df
     return results
 
 def compare_sales_totals(siat_totals, hergo_totals, tolerance=0.01):
