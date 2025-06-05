@@ -1,5 +1,6 @@
 # Archivos de configuración sensibles
 db_config.ini
+db_config_contabilidad.ini
 .env
 
 # Entorno virtual

@@ -1,0 +1,7 @@
+[mysql]
+host = TU_HOST_CONTABILIDAD
+user = TU_USUARIO_CONTABILIDAD
+password = TU_PASSWORD_CONTABILIDAD
+database = TU_BD_CONTABILIDAD
+port = 3306
+charset = utf8mb4
