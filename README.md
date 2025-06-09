@@ -106,6 +106,43 @@ Los resultados de la verificación se exportan automáticamente a los siguientes
 
 Si no se especifican parámetros, el sistema solicitará el mes y año a procesar interactivamente.
 
+### Verificar consistencia de facturas e importar a contabilidad
+
+Para verificar la consistencia entre las facturas del SIAT y el sistema de inventarios **y opcionalmente importar el resultado a la base de datos contable**, ejecuta:
+
+```bash
+python main.py -m MM -y YYYY -v
+```
+
+- El sistema realiza la verificación SIAT vs inventario y muestra los cuadros comparativos.
+- Al finalizar, preguntará si deseas importar el archivo de verificación a la base de datos contable.
+- Si respondes "s", se ejecuta el flujo de importación robusto (validación, resumen, reemplazo seguro y bulk insert).
+- La salida es limpia: ya **no se muestran prints de columnas internas** del DataFrame ni de la tabla SQL, solo información relevante para el usuario.
+
+#### Ejemplo de flujo:
+
+```
+¿Desea importar el archivo de verificación a la base de datos contable? (s/N): s
+Leyendo archivo: data/output/verificacion_completa_01_2025.csv
+...
+Resumen en base de datos:
+  Total registros: 562
+  Suma total_sale_amount (solo V): 3,024,497.31
+  ...
+Resumen en archivo CSV:
+  Total registros: 562
+  ...
+Si continúas, se eliminarán todos los registros del periodo en la base y se reemplazarán por los del CSV.
+Revisa el resumen antes de confirmar.
+¿Desea ELIMINAR los registros de ese periodo y reemplazarlos por los nuevos? (s/N): s
+Se eliminaron 562 registros del periodo 01/2025.
+...
+Se insertaron 562 registros en sales_registers para 01/2025.
+```
+
+> **Nota:**
+> El proceso de importación es seguro, validado y no muestra detalles técnicos de columnas internas. Toda la lógica de importación está integrada y automatizada tras la verificación con el flag `-v`.
+
 ## Estructura del proyecto
 
 ```

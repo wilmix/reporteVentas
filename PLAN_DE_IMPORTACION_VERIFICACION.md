@@ -105,6 +105,21 @@ CREATE TABLE `sales_registers` (
 
 ---
 
+### Comparación previa antes de eliminar/importar
+
+Antes de eliminar los registros existentes y proceder con la importación, el script debe:
+
+1. Leer los registros existentes en la base de datos para el periodo seleccionado.
+2. Comparar la cantidad de registros entre la base y el archivo CSV.
+3. Comparar las claves principales (`authorization_code`) para identificar:
+   - Registros solo en la base
+   - Registros solo en el CSV
+   - Registros en ambos
+4. Para los registros en ambos, comparar campos relevantes (`total_sale_amount`, `status`, `customer_nit`, `customer_name`, `invoice_date`, etc.) y mostrar cuántos tienen diferencias.
+5. Mostrar un resumen claro de las diferencias y pedir confirmación informada al usuario antes de eliminar/importar.
+
+Esto permite tomar decisiones informadas y evita la pérdida accidental de información relevante.
+
 ## Alternativas Técnicas
 
 1. **Script Python dedicado** (recomendado): Un módulo/función que lea el CSV y lo suba a la nueva base de datos.

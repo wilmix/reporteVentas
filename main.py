@@ -132,11 +132,7 @@ def process_sales_data_basic(project_root, month=None, year=None):
 def verify_invoices_consistency(project_root, month=None, year=None, print_discrepancias=True):
     """
     Verifica la consistencia entre las facturas del SIAT y el sistema de inventarios.
-    
-    Args:
-        project_root (str): Directorio raíz del proyecto
-        month (str, optional): Mes a procesar en formato '01', '02', etc.
-        year (int, optional): Año a procesar
+    Si el usuario lo desea, importa el archivo de verificación a la base contable.
     """
     # Obtener mes y año a través de entrada interactiva si no se proporcionan
     month, year = get_month_year_input(month, year)
@@ -167,6 +163,15 @@ def verify_invoices_consistency(project_root, month=None, year=None, print_discr
         df_inv = get_inventory_system_invoices(db_params, int(year), int(month))
         if df_inv is not None and not df_inv.empty:
             mostrar_cuadro_comparativo_verificacion(df_siat, df_inv)
+    # --- Integración de importación a contabilidad ---
+    print("\n¿Desea importar el archivo de verificación a la base de datos contable? (s/N): ", end="")
+    resp = input().strip().lower()
+    if resp == 's':
+        try:
+            from ventas_plus.importar_verificacion_contabilidad import main_import
+            main_import(int(month), int(year))
+        except Exception as e:
+            print(f"[ERROR] Falló la importación a contabilidad: {e}")
 
 def comparar_con_hergo(project_root, year, month, siat_df):
     """
