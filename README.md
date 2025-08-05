@@ -106,23 +106,26 @@ Los resultados de la verificación se exportan automáticamente a los siguientes
 
 Si no se especifican parámetros, el sistema solicitará el mes y año a procesar interactivamente.
 
+
 ### Verificar consistencia de facturas e importar a contabilidad
 
 Para verificar la consistencia entre las facturas del SIAT y el sistema de inventarios **y opcionalmente importar el resultado a la base de datos contable**, ejecuta:
 
 ```bash
-python main.py -m MM -y YYYY -v
+python main.py -m MM -y YYYY -v --upload-contable
 ```
 
 - El sistema realiza la verificación SIAT vs inventario y muestra los cuadros comparativos.
-- Al finalizar, preguntará si deseas importar el archivo de verificación a la base de datos contable.
+- Al finalizar, si el archivo de verificación existe, preguntará si deseas importar el archivo de verificación a la base de datos contable.
 - Si respondes "s", se ejecuta el flujo de importación robusto (validación, resumen, reemplazo seguro y bulk insert).
-- La salida es limpia: ya **no se muestran prints de columnas internas** del DataFrame ni de la tabla SQL, solo información relevante para el usuario.
+- Si el archivo de verificación no existe, se muestra un mensaje de error y no se realiza la importación.
+- La salida es limpia: solo información relevante para el usuario.
 
 #### Ejemplo de flujo:
 
 ```
-¿Desea importar el archivo de verificación a la base de datos contable? (s/N): s
+¿Deseas subir los datos verificados a la base contable? (s/N): s
+Ejecutando importación a la base contable...
 Leyendo archivo: data/output/verificacion_completa_01_2025.csv
 ...
 Resumen en base de datos:
@@ -141,7 +144,7 @@ Se insertaron 562 registros en sales_registers para 01/2025.
 ```
 
 > **Nota:**
-> El proceso de importación es seguro, validado y no muestra detalles técnicos de columnas internas. Toda la lógica de importación está integrada y automatizada tras la verificación con el flag `-v`.
+> El proceso de importación es seguro, validado y no muestra detalles técnicos de columnas internas. Toda la lógica de importación está integrada y automatizada tras la verificación con el flag `-v --upload-contable`.
 
 ## Estructura del proyecto
 

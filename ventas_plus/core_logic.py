@@ -12,8 +12,6 @@ import configparser
 import mysql.connector
 import warnings
 import contextlib
-from ventas_plus.comparison import compare_siat_with_inventory
-from ventas_plus.report_comparativo import resumen_totales_y_cantidades, mostrar_cuadro_comparativo_siatsysinv
 
 @contextlib.contextmanager
 def suppress_openpyxl_warnings():
@@ -354,13 +352,13 @@ def get_inventory_system_invoices(db_params, year, month):
         conn = connect_to_db(db_params)
         if conn is None:
             return None
-              # Definir la consulta SQL
+            
+        # Definir la consulta SQL
         query = """
             SELECT
                 DATE_FORMAT(f.fechaFac, '%d/%m/%Y') fechaFac,
                 nFactura,
                 fs.cuf autorizacion,
-                fs.codigoSucursal,
                 f.ClienteNit nit,
                 '' complemento,
                 f.ClienteFactura razonSocial,
@@ -380,7 +378,7 @@ def get_inventory_system_invoices(db_params, year, month):
                 IF(anulada = 0, 'V', 'A') estado,
                 IF(codigoControl = '', 0, codigoControl) AS codigoControl,
                 0 tipoVenta,
-                a.almacen _alm,
+                a.almacen codigoSucursal,
                 '' _revision,
                 IF(df.manual = 1, 'SIAT-DESKTOP-FE', 'ONLINE') _tipoFac,
                 f.glosa _obs,
@@ -416,191 +414,86 @@ def get_inventory_system_invoices(db_params, year, month):
         print(f"Error al consultar facturas del sistema de inventarios: {e}")
         return None
 
-# def compare_siat_with_inventory(siat_data, inventory_data):
-#     """
-#     Comparar facturas del SIAT con las del sistema de inventarios.
+def compare_siat_with_inventory(siat_data, inventory_data):
+    """
+    Comparar facturas del SIAT con las del sistema de inventarios.
     
-#     Args:
-#         siat_data (DataFrame): Datos de facturas del SIAT
-#         inventory_data (DataFrame): Datos de facturas del sistema de inventarios
+    Args:
+        siat_data (DataFrame): Datos de facturas del SIAT
+        inventory_data (DataFrame): Datos de facturas del sistema de inventarios
         
-#     Returns:
-#         dict: Resultados de la comparación y DataFrame con detalles
-#     """
-#     results = {
-#         'total_siat': len(siat_data),
-#         'total_inventory': len(inventory_data),
-#         'matching_invoices': 0,
-#         'missing_in_inventory': [],
-#         'missing_in_siat': [],
-#         'amount_difference': 0.0,
-#         'amount_difference_details': [],
-#         'field_discrepancies': []
-#     }
+    Returns:
+        dict: Resultados de la comparación
+    """
+    results = {
+        'total_siat': len(siat_data),
+        'total_inventory': len(inventory_data),
+        'matching_invoices': 0,
+        'missing_in_inventory': [],
+        'missing_in_siat': [],
+        'amount_difference': 0.0,
+        'amount_difference_details': []
+    }
     
-#     # Excluir facturas de alquileres del SIAT (SECTOR 02)
-#     siat_no_alquileres = siat_data[siat_data['SECTOR'] != '02']
-#     results['total_siat_no_alquileres'] = len(siat_no_alquileres)
+    # Excluir facturas de alquileres del SIAT (SECTOR 02)
+    siat_no_alquileres = siat_data[siat_data['SECTOR'] != '02']
+    results['total_siat_no_alquileres'] = len(siat_no_alquileres)
     
-#     # Crear Series con autorizaciones para comparación rápida
-#     siat_auths = set(siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].str.strip())
-#     inventory_auths = set(inventory_data['autorizacion'].str.strip())
+    # Crear Series con autorizaciones para comparación rápida
+    siat_auths = set(siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].str.strip())
+    inventory_auths = set(inventory_data['autorizacion'].str.strip())
     
-#     # Encontrar facturas que coinciden
-#     matching_auths = siat_auths.intersection(inventory_auths)
-#     results['matching_invoices'] = len(matching_auths)
+    # Encontrar facturas que coinciden
+    matching_auths = siat_auths.intersection(inventory_auths)
+    results['matching_invoices'] = len(matching_auths)
     
-#     # Encontrar facturas que están en SIAT pero no en inventario
-#     missing_in_inventory = siat_auths - inventory_auths
-#     results['missing_in_inventory_count'] = len(missing_in_inventory)
+    # Encontrar facturas que están en SIAT pero no en inventario
+    missing_in_inventory = siat_auths - inventory_auths
+    results['missing_in_inventory_count'] = len(missing_in_inventory)
     
-#     if len(missing_in_inventory) > 0:
-#         missing_df = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(missing_in_inventory)]
-#         results['missing_in_inventory'] = missing_df[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO']].to_dict('records')
+    if len(missing_in_inventory) > 0:
+        missing_df = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(missing_in_inventory)]
+        results['missing_in_inventory'] = missing_df[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO']].to_dict('records')
     
-#     # Encontrar facturas que están en inventario pero no en SIAT
-#     missing_in_siat = inventory_auths - siat_auths
-#     results['missing_in_siat_count'] = len(missing_in_siat)
+    # Encontrar facturas que están en inventario pero no en SIAT
+    missing_in_siat = inventory_auths - siat_auths
+    results['missing_in_siat_count'] = len(missing_in_siat)
     
-#     if len(missing_in_siat) > 0:
-#         missing_df = inventory_data[inventory_data['autorizacion'].isin(missing_in_siat)]
-#         results['missing_in_siat'] = missing_df[['autorizacion', 'importeTotal', 'estado']].to_dict('records')
+    if len(missing_in_siat) > 0:
+        missing_df = inventory_data[inventory_data['autorizacion'].isin(missing_in_siat)]
+        results['missing_in_siat'] = missing_df[['autorizacion', 'importeTotal', 'estado']].to_dict('records')
     
-#     # Verificar diferencias en campos específicos para facturas que coinciden
-#     if len(matching_auths) > 0:
-#         # Preparar DataFrames para comparación
-#         siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
-#         inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
-          # Crear DataFrames con columnas a comparar
-        # SIAT columns
-#         siat_compare = siat_matching[[
-#             'CODIGO DE AUTORIZACIÓN',
-#             'FECHA DE LA FACTURA',
-#             'Nº DE LA FACTURA',
-#             'NIT / CI CLIENTE',
-#             'NOMBRE O RAZON SOCIAL',
-#             'IMPORTE TOTAL DE LA VENTA',
-#             'ESTADO',
-#             'SUCURSAL'
-#         ]].copy()
+    # Verificar diferencias en montos para facturas que coinciden
+    if len(matching_auths) > 0:
+        # Preparar DataFrames para comparación
+        siat_matching = siat_no_alquileres[siat_no_alquileres['CODIGO DE AUTORIZACIÓN'].isin(matching_auths)]
+        inventory_matching = inventory_data[inventory_data['autorizacion'].isin(matching_auths)]
         
-        # Inventory columns
-#         inventory_compare = inventory_matching[[
-#             'autorizacion',
-#             'fechaFac',
-#             'nFactura',
-#             'nit',
-#             'razonSocial',
-#             'importeTotal',
-#             'estado',
-#             'codigoSucursal'
-#         ]].copy()
+        # Crear DataFrames con solo las columnas necesarias
+        siat_compare = siat_matching[['CODIGO DE AUTORIZACIÓN', 'IMPORTE TOTAL DE LA VENTA']].copy()
+        inventory_compare = inventory_matching[['autorizacion', 'importeTotal']].copy()
         
         # Renombrar columnas para facilitar la comparación
-#         siat_compare.rename(columns={
-#             'CODIGO DE AUTORIZACIÓN': 'autorizacion',
-#             'FECHA DE LA FACTURA': 'fecha_siat',
-#             'Nº DE LA FACTURA': 'nfactura_siat',
-#             'NIT / CI CLIENTE': 'nit_siat',
-#             'NOMBRE O RAZON SOCIAL': 'razon_social_siat',
-#             'IMPORTE TOTAL DE LA VENTA': 'importe_siat',
-#             'ESTADO': 'estado_siat',
-#             'SUCURSAL': 'sucursal_siat'
-#         }, inplace=True)
-        
-#         inventory_compare.rename(columns={
-#             'fechaFac': 'fecha_inv',
-#             'nFactura': 'nfactura_inv',
-#             'nit': 'nit_inv',
-#             'razonSocial': 'razon_social_inv',
-#             'importeTotal': 'importe_inv',
-#             'estado': 'estado_inv',
-#             'codigoSucursal': 'sucursal_inv'
-#         }, inplace=True)
+        siat_compare.rename(columns={'CODIGO DE AUTORIZACIÓN': 'autorizacion', 'IMPORTE TOTAL DE LA VENTA': 'importe_siat'}, inplace=True)
+        inventory_compare.rename(columns={'importeTotal': 'importe_inventory'}, inplace=True)
         
         # Combinar DataFrames para comparación
-#         comparison = pd.merge(siat_compare, inventory_compare, on='autorizacion')
+        comparison = pd.merge(siat_compare, inventory_compare, on='autorizacion')
         
-        # Agregar columna de observaciones
-#         comparison['OBSERVACIONES'] = ''
-          # Convertir las columnas numéricas
-#         comparison['nfactura_siat'] = pd.to_numeric(comparison['nfactura_siat'], errors='coerce')
-#         comparison['nfactura_inv'] = pd.to_numeric(comparison['nfactura_inv'], errors='coerce')
-#         comparison['nit_siat'] = comparison['nit_siat'].astype(str).str.strip()
-#         comparison['nit_inv'] = comparison['nit_inv'].astype(str).str.strip()
+        # Calcular diferencias
+        comparison['diferencia'] = comparison['importe_siat'] - comparison['importe_inventory']
         
-        # Función para normalizar códigos de sucursal (aplicable antes del procesamiento individual)
-#         def normalize_branch_code(code):
-#             if code is None or pd.isna(code):
-#                 return ''
-#             # Convertir a string, quitar espacios, quitar ceros a la izquierda
-#             normalized = str(code).strip().lstrip('0')
-#             # Si quedó vacío después de quitar los ceros, era un "0" o "00", etc.
-#             if normalized == '':
-#                 return '0'
-#             return normalized
+        # Filtrar solo los que tienen diferencias significativas (más de 0.01)
+        differences = comparison[abs(comparison['diferencia']) > 0.01]
         
-        # Normalizar códigos de sucursal antes de las comparaciones
-#         comparison['sucursal_siat_norm'] = comparison['sucursal_siat'].apply(normalize_branch_code)
-#         comparison['sucursal_inv_norm'] = comparison['sucursal_inv'].apply(normalize_branch_code)
-        
-        # Convertir estados de inventario a formato SIAT (V->VALIDA, A->ANULADA)
-#         comparison['estado_inv'] = comparison['estado_inv'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
-        
-        # Verificar discrepancias en cada campo
-#         for i, row in comparison.iterrows():
-#             observaciones = []
-            
-#             # 1. Verificar fecha
-#             if row['fecha_siat'] != row['fecha_inv']:
-#                 observaciones.append(f"Fecha: SIAT={row['fecha_siat']}, INV={row['fecha_inv']}")
-                
-#             # 2. Verificar número de factura
-#             if row['nfactura_siat'] != row['nfactura_inv']:
-#                 observaciones.append(f"Nº Factura: SIAT={row['nfactura_siat']}, INV={row['nfactura_inv']}")
-                
-#             # 3. Verificar NIT
-#             if row['nit_siat'] != row['nit_inv']:
-#                 observaciones.append(f"NIT: SIAT={row['nit_siat']}, INV={row['nit_inv']}")
-                
-#             # 5. Verificar importe (con tolerancia de 0.01)
-#             if abs(row['importe_siat'] - row['importe_inv']) > 0.01:
-#                 observaciones.append(f"Importe: SIAT={row['importe_siat']}, INV={row['importe_inv']}")
-                
-#             # 6. Verificar estado
-#             if row['estado_siat'] != row['estado_inv']:
-#                 observaciones.append(f"Estado: SIAT={row['estado_siat']}, INV={row['estado_inv']}")            # 7. Verificar sucursal usando los valores normalizados previamente calculados
-#             # Solo agregar observación si hay diferencia en el valor efectivo, no solo en formato
-#             if row['sucursal_siat_norm'] != row['sucursal_inv_norm']:
-#                 observaciones.append(f"Sucursal: SIAT={row['sucursal_siat']}, INV={row['sucursal_inv']}")
-#                 # Para debug (opcional): podemos agregar los valores normalizados para verificación
-#                 # observaciones.append(f"Sucursal normalizada: SIAT={row['sucursal_siat_norm']}, INV={row['sucursal_inv_norm']}")
-                
-#             # Guardar observaciones
-#             if observaciones:
-#                 comparison.at[i, 'OBSERVACIONES'] = "; ".join(observaciones)
-#                 results['field_discrepancies'].append({
-#                     'autorizacion': row['autorizacion'],
-#                     'observaciones': "; ".join(observaciones)
-#                 })
-        
-#         # Calcular diferencias en montos (igual que antes)
-#         comparison['diferencia_importe'] = comparison['importe_siat'] - comparison['importe_inv']
-        
-#         # Filtrar solo los que tienen diferencias significativas en montos (más de 0.01)
-#         differences = comparison[abs(comparison['diferencia_importe']) > 0.01]
-        
-#         if len(differences) > 0:
-#             results['amount_differences_count'] = len(differences)
-#             results['amount_difference'] = differences['diferencia_importe'].sum()
-#             results['amount_difference_details'] = differences.to_dict('records')
-        
-#         # Guardar el DataFrame completo para retornarlo
-#         results['comparison_dataframe'] = comparison
+        if len(differences) > 0:
+            results['amount_differences_count'] = len(differences)
+            results['amount_difference'] = differences['diferencia'].sum()
+            results['amount_difference_details'] = differences.to_dict('records')
     
-#     return results
+    return results
 
-def verify_invoice_consistency(project_root, config_file_path, month, year, export_results=True, print_discrepancias=True):
+def verify_invoice_consistency(project_root, config_file_path, month, year, export_results=True):
     """
     Verificar consistencia entre facturas del SIAT y del sistema de inventarios.
     
@@ -636,10 +529,7 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         
     # Procesar datos del SIAT
     siat_processed = process_sales_data(siat_data)
-
-    # Mostrar resumen de ventas SIAT antes de comparar con inventario
-    generar_reporte_ventas(siat_processed)
-
+    
     # Obtener configuración de la base de datos y conectar
     try:
         db_params = get_db_config(config_file_path)
@@ -656,7 +546,9 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         
     # Comparar los datos
     print("\nComparando datos del SIAT con el sistema de inventarios...")
-    comparison_results = compare_siat_with_inventory(siat_processed, inventory_data)
+    # Importar la función correcta de comparison.py
+    from .comparison import compare_siat_with_inventory as compare_full
+    comparison_results = compare_full(siat_processed, inventory_data)
     
     # Mostrar resultados
     print("\n=== RESULTADOS DE LA VERIFICACIÓN ===")
@@ -675,241 +567,36 @@ def verify_invoice_consistency(project_root, config_file_path, month, year, expo
         print(f"\nFacturas con diferencias de montos: {comparison_results['amount_differences_count']}")
         print(f"Diferencia total: {comparison_results['amount_difference']:,.2f}")
     
-    if 'field_discrepancies' in comparison_results and comparison_results['field_discrepancies']:
-        print(f"\nFacturas con discrepancias en campos: {len(comparison_results['field_discrepancies'])}")
-    
-    # Mostrar detalle de discrepancias en consola si corresponde
-    if print_discrepancias and 'comparison_dataframe' in comparison_results:
-        comparison_df = comparison_results['comparison_dataframe']
-        discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'].astype(str).str.strip() != '']
-        if not discrepancias_df.empty:
-            imprimir_discrepancias_consola(discrepancias_df)
-    
     # Exportar resultados si se solicita
     if export_results:
         output_dir = os.path.join(project_root, "data", "output")
         os.makedirs(output_dir, exist_ok=True)
 
-        # Exportar archivo de verificación completa (todas las facturas SIAT con observaciones)
+        # Exportar archivo completo de verificación
         if 'verificacion_completa' in comparison_results:
-            df = comparison_results['verificacion_completa']
-            # Asegurarse de que las columnas necesarias existen
-            if all(col in df.columns for col in ['SECTOR', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA', 'SUCURSAL']):
-                # ORDENAR ANTES DE EXPORTAR: primero alquileres (SECTOR==02), luego ventas (SECTOR!=02)
-                # Alquileres: SECTOR == '02'
-                alquileres = df[df['SECTOR'] == '02'].copy()
-                alquileres = alquileres.sort_values(by=['FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True])
-                # Ventas: SECTOR != '02'
-                ventas = df[df['SECTOR'] != '02'].copy()
-                ventas['SUCURSAL_ORD'] = ventas['SUCURSAL'].astype(str).str.lstrip('0').replace('', '0').astype(int)
-                ventas = ventas.sort_values(by=['SUCURSAL_ORD', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA'], ascending=[True, True, True])
-                ventas = ventas.drop(columns=['SUCURSAL_ORD'])
-                # Concatenar
-                df_ordenado = pd.concat([alquileres, ventas], ignore_index=True)
-                # Renumerar la columna 'Nº' después de ordenar y antes de exportar
-                if 'Nº' in df_ordenado.columns:
-                    df_ordenado['Nº'] = range(1, len(df_ordenado) + 1)
-                df_export = df_ordenado.copy()
-            else:
-                # Si falta alguna columna, exportar sin ordenar especial
-                df_export = df.copy()
-            # --- FILTRAR Y ORDENAR COLUMNAS ANTES DE EXPORTAR ---
-            # Agregar columnas faltantes como vacías
-            for col in REQUIRED_VERIFICACION_COLUMNS:
-                if col not in df_export.columns:
-                    df_export[col] = ''
-            # Seleccionar y reordenar columnas
-            df_export = df_export[REQUIRED_VERIFICACION_COLUMNS]
-            # Normalizar NIT/CI y Nº DE LA FACTURA como string sin .0
-            for col in ['NIT / CI CLIENTE', 'Nº DE LA FACTURA']:
-                if col in df_export.columns:
-                    df_export[col] = df_export[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
-            df_export.to_csv(verif_path, index=False, sep=',')
-            print(f"Archivo de verificación completa guardado en: {verif_path}")
+            verif_df = comparison_results['verificacion_completa']
+            if isinstance(verif_df, pd.DataFrame) and not verif_df.empty:
+                verif_path = os.path.join(output_dir, f"verificacion_completa_{formatted_month}_{year}.csv")
+                verif_df.to_csv(verif_path, index=False)
+                print(f"\nArchivo de verificación completa guardado en: {verif_path}")
 
-        # Unificar discrepancias en un solo DataFrame SOLO desde el comparison_dataframe
-        columns_to_export = [
-            'autorizacion',
-            'fecha_siat', 'fecha_inv',
-            'nfactura_siat', 'nfactura_inv',
-            'nit_siat', 'nit_inv',
-            'importe_siat', 'importe_inv',
-            'diferencia_importe',
-            'estado_siat', 'estado_inv',
-            'sucursal_siat', 'sucursal_inv',
-            'sucursal_siat_norm', 'sucursal_inv_norm',
-            'OBSERVACIONES'
-        ]
-        if 'comparison_dataframe' in comparison_results:
-            comparison_df = comparison_results['comparison_dataframe']
-            # Filtrar solo discrepancias (OBSERVACIONES no vacío)
-            discrepancias_df = comparison_df[comparison_df['OBSERVACIONES'].astype(str).str.strip() != '']
-            # Eliminar duplicados por autorizacion (mantener la fila más informativa)
-            discrepancias_df = discrepancias_df.sort_values(
-                by=['fecha_siat', 'nfactura_siat', 'nit_siat'], na_position='last'
-            ).drop_duplicates(subset=['autorizacion'], keep='first')
-            if not discrepancias_df.empty:
-                df_export = comparison_results['verificacion_completa'].copy()
-                # Asegurar que todas las columnas existen (si falta alguna, agregarla vacía)
-                for col in REQUIRED_VERIFICACION_COLUMNS:
-                    if col not in df_export.columns:
-                        df_export[col] = ''
-                # Filtrar y reordenar
-                df_export = df_export[REQUIRED_VERIFICACION_COLUMNS]
-                # Normalizar NIT/CI y Nº DE LA FACTURA como string sin .0
-                for col in ['NIT / CI CLIENTE', 'Nº DE LA FACTURA']:
-                    if col in df_export.columns:
-                        df_export[col] = df_export[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                discrepancias_path = os.path.join(output_dir, f"discrepancias_{formatted_month}_{year}.csv")
-                df_export.to_csv(discrepancias_path, index=False, sep=',')
-                print(f"Archivo único de discrepancias guardado en: {discrepancias_path}")
-            else:
-                print("No se encontraron discrepancias para exportar.")
-        else:
-            print("No se encontraron discrepancias para exportar.")
-        return comparison_results
+        # Crear un DataFrame con las diferencias
+        if comparison_results['missing_in_inventory']:
+            missing_inv_df = pd.DataFrame(comparison_results['missing_in_inventory'])
+            missing_inv_path = os.path.join(output_dir, f"missing_in_inventory_{formatted_month}_{year}.csv")
+            missing_inv_df.to_csv(missing_inv_path, index=False)
+            print(f"\nFacturas faltantes en inventarios guardadas en: {missing_inv_path}")
 
-# === CONSTANTE: Columnas requeridas para el archivo de verificación completa ===
-REQUIRED_VERIFICACION_COLUMNS = [
-    'Nº', 'FECHA DE LA FACTURA', 'Nº DE LA FACTURA', 'CODIGO DE AUTORIZACIÓN', 'NIT / CI CLIENTE',
-    'COMPLEMENTO', 'NOMBRE O RAZON SOCIAL', 'IMPORTE TOTAL DE LA VENTA', 'IMPORTE ICE', 'IMPORTE IEHD',
-    'IMPORTE IPJ', 'TASAS', 'OTROS NO SUJETOS AL IVA', 'EXPORTACIONES Y OPERACIONES EXENTAS',
-    'VENTAS GRAVADAS A TASA CERO', 'SUBTOTAL', 'DESCUENTOS BONIFICACIONES Y REBAJAS SUJETAS AL IVA',
-    'IMPORTE GIFT CARD', 'IMPORTE BASE PARA DEBITO FISCAL', 'DEBITO FISCAL', 'ESTADO', 'CODIGO DE CONTROL',
-    'TIPO DE VENTA', 'CON DERECHO A CREDITO FISCAL', 'ESTADO CONSOLIDACION', 'SUCURSAL', 'MODALIDAD',
-    'TIPO EMISION', 'TIPO FACTURA', 'SECTOR', '_obs', '_autor', 'OBSERVACIONES'
-]
+        if comparison_results['missing_in_siat']:
+            missing_siat_df = pd.DataFrame(comparison_results['missing_in_siat'])
+            missing_siat_path = os.path.join(output_dir, f"missing_in_siat_{formatted_month}_{year}.csv")
+            missing_siat_df.to_csv(missing_siat_path, index=False)
+            print(f"Facturas faltantes en SIAT guardadas en: {missing_siat_path}")
 
-def imprimir_discrepancias_consola(discrepancias_df):
-    """
-    Imprime en consola un resumen detallado y amigable de las discrepancias encontradas.
-    """
-    if discrepancias_df.empty:
-        print("No se encontraron discrepancias relevantes.")
-        return
-    print("\n=== DETALLE DE DISCREPANCIAS ENCONTRADAS ===\n")
-    for idx, row in discrepancias_df.iterrows():
-        print(f"CUF: {row.get('autorizacion','')}")
-        print(f"  Nº Factura: {row.get('nfactura_siat') or row.get('nfactura_inv') or ''}")
-        print(f"  Fecha: {row.get('fecha_siat') or row.get('fecha_inv') or ''}")
-        print(f"  Cliente (NIT): {row.get('nit_siat') or row.get('nit_inv') or ''}")
-        print(f"  Monto: SIAT={row.get('importe_siat') if not pd.isna(row.get('importe_siat')) else '-'} | INV={row.get('importe_inv') if not pd.isna(row.get('importe_inv')) else '-'}")
-        print(f"  Estado: SIAT={row.get('estado_siat') or '-'} | INV={row.get('estado_inv') or '-'}")
-        print(f"  Sucursal: SIAT={row.get('sucursal_siat') or '-'} | INV={row.get('sucursal_inv') or '-'}")
-        print(f"  Sector: {row.get('sucursal_siat_norm') or row.get('sucursal_inv_norm') or '-'}")
-        print(f"  Observaciones: {row.get('OBSERVACIONES','')}")
-        print("-"*60)
+        if 'amount_difference_details' in comparison_results and comparison_results['amount_difference_details']:
+            diff_df = pd.DataFrame(comparison_results['amount_difference_details'])
+            diff_path = os.path.join(output_dir, f"amount_differences_{formatted_month}_{year}.csv")
+            diff_df.to_csv(diff_path, index=False)
+            print(f"Diferencias de montos guardadas en: {diff_path}")
 
-def generar_reporte_ventas(df):
-    """
-    Genera e imprime un reporte resumen de ventas a partir del DataFrame del SIAT.
-    """
-    def fmt(val):
-        return f"{val:,.2f}" if isinstance(val, (int, float)) else val
-
-    # === ALQUILERES ===
-    df_alq = df[df["SECTOR"] == '02']
-    total_alquileres = df_alq[df_alq["ESTADO"] == 'VALIDA']["IMPORTE TOTAL DE LA VENTA"].sum()
-    facturas_alq_validas = len(df_alq[df_alq["ESTADO"] == 'VALIDA'])
-    facturas_alq_anuladas = len(df_alq[df_alq["ESTADO"] == 'ANULADA'])
-
-    # === TOTALES GENERALES ===
-    df_validas = df[df["ESTADO"] == "VALIDA"]
-    total_ventas_validas = df_validas["IMPORTE TOTAL DE LA VENTA"].sum()
-    total_ventas_sin_alquiler = total_ventas_validas - total_alquileres
-
-    # Calcular total sector 01 (igual que comparación SIAT vs Hergo)
-    total_ventas_validas_sector01 = df[(df['ESTADO'] == 'VALIDA') & (df['SECTOR'] == '01')]["IMPORTE TOTAL DE LA VENTA"].sum()
-
-    # === SUCURSAL CENTRAL (0000) ===
-    df_central = df[df['SUCURSAL'] == '0000']
-    df_central_validas_cv = df_central[(df_central['ESTADO'] == 'VALIDA') & (df_central['SECTOR'] == '01')]
-    df_central_validas_cvb = df_central[(df_central['ESTADO'] == 'VALIDA') & (df_central['SECTOR'] == '35')]
-    df_central_anuladas = df_central[df_central['ESTADO'] == 'ANULADA']
-    total_central = df_central_validas_cv["IMPORTE TOTAL DE LA VENTA"].sum() + df_central_validas_cvb["IMPORTE TOTAL DE LA VENTA"].sum()
-
-    # === SUCURSAL POTOSÍ (0006) ===
-    df_potosi = df[df['SUCURSAL'] == '0006']
-    df_potosi_validas = df_potosi[(df_potosi['ESTADO'] == 'VALIDA') & (df_potosi['SECTOR'] == '01')]
-    df_potosi_anuladas = df_potosi[(df_potosi['ESTADO'] == 'ANULADA') & (df_potosi['SECTOR'] == '01')]
-    total_potosi = df_potosi_validas["IMPORTE TOTAL DE LA VENTA"].sum()
-
-    # === SUCURSAL SANTA CRUZ (0005) ===
-    df_scz = df[df['SUCURSAL'] == '0005']
-    df_scz_validas = df_scz[(df_scz['ESTADO'] == 'VALIDA') & (df_scz['SECTOR'] == '01')]
-    df_scz_anuladas = df_scz[(df_scz['ESTADO'] == 'ANULADA') & (df_scz['SECTOR'] == '01')]
-    total_scz = df_scz_validas["IMPORTE TOTAL DE LA VENTA"].sum()
-
-    # === RESUMEN DE FACTURAS ===
-    total_facturas_validas = len(df[df['ESTADO'] == 'VALIDA'])
-    total_facturas_anuladas = len(df[df['ESTADO'] == 'ANULADA'])
-    total_facturas = len(df)
-
-    print("\n--- REPORTE DE VENTAS ---\n")
-    print("=== ALQUILERES ===")
-    print(f"Total Alquileres: {fmt(total_alquileres)}")
-    print(f"Facturas Válidas: {facturas_alq_validas}")
-    print(f"Facturas Anuladas: {facturas_alq_anuladas}\n")
-
-    print("=== TOTALES GENERALES ===")
-    print(f"Total Ventas Válidas: {fmt(total_ventas_validas)}")
-    print(f"Total Ventas sin Alquiler: {fmt(total_ventas_sin_alquiler)}")
-    print(f"Total Ventas Válidas sector 01: {fmt(total_ventas_validas_sector01)}\n")
-
-    print("=== SUCURSAL CENTRAL (0000) ===")
-    print(f"Total Ventas: {fmt(total_central)}")
-    print(f"Facturas Válidas CV: {len(df_central_validas_cv)}")
-    print(f"Facturas Válidas CVB: {len(df_central_validas_cvb)}")
-    print(f"Facturas Anuladas: {len(df_central_anuladas)}\n")
-
-    print("=== SUCURSAL POTOSÍ (0006) ===")
-    print(f"Total Ventas: {fmt(total_potosi)}")
-    print(f"Facturas Válidas: {len(df_potosi_validas)}")
-    print(f"Facturas Anuladas: {len(df_potosi_anuladas)}\n")
-
-    print("=== SUCURSAL SANTA CRUZ (0005) ===")
-    print(f"Total Ventas: {fmt(total_scz)}")
-    print(f"Facturas Válidas: {len(df_scz_validas)}")
-    print(f"Facturas Anuladas: {len(df_scz_anuladas)}\n")
-
-    print("=== RESUMEN DE FACTURAS ===")
-    print(f"Total Facturas Válidas: {total_facturas_validas}")
-    print(f"Total Facturas Anuladas: {total_facturas_anuladas}")
-    print(f"Total Facturas: {total_facturas}\n")
-    print("--- Reporte de Ventas SIAT terminado ---\n")
-
-def mostrar_comparacion_siat_hergo(comparacion):
-    """
-    Muestra en consola la comparación SIAT vs Hergo en formato tabla.
-    """
-
-    print("\n--- COMPARATIVO SIAT vs HERGO ---\n")
-    print(f"{'Sucursal':<12} | {'Total SIAT':>15} | {'Total Hergo':>15} | {'Diferencia':>12} | {'Estado':>6}")
-    print("-"*68)
-    for row in comparacion:
-        print(f"{row['sucursal']:<12} | {row['total_siat']:>15,.2f} | {row['total_hergo']:>15,.2f} | {row['diferencia']:>12,.2f} | {row['estado']:>6}")
-    print("-"*68)
-
-def mostrar_cuadro_comparativo_verificacion(df_siat, df_inv):
-    """
-    Muestra un cuadro comparativo SIAT vs Inventario (totales, válidas, anuladas) tras la verificación.
-    Incluye una fila especial para ALQUILERES (SECTOR 02 en SIAT).
-    """
-    from ventas_plus.branch_normalization import normalize_branch_code
-    suc_map = {'0000': 'CENTRAL', '0005': 'SANTA CRUZ', '0006': 'POTOSI'}
-    # --- Normalizar SIAT ---
-    df_siat = df_siat.copy()
-    df_siat['SUCURSAL'] = df_siat['SUCURSAL'].apply(lambda x: str(x).zfill(4))
-    # Excluir alquileres de las sucursales normales (ventas)
-    df_siat_ventas = df_siat[df_siat['SECTOR'].astype(str).str.zfill(2) != '02']
-    res_siat = resumen_totales_y_cantidades(df_siat_ventas, 'SIAT', 'IMPORTE TOTAL DE LA VENTA', 'ESTADO', 'SECTOR', 'SUCURSAL')
-    # --- Preprocesar inventario ---
-    df_inv = df_inv.copy()
-    df_inv['estado'] = df_inv['estado'].replace({'V': 'VALIDA', 'A': 'ANULADA'})
-    if 'SECTOR' not in df_inv.columns:
-        df_inv['SECTOR'] = '01'  # No hay sector real, pero así la función no falla
-    df_inv['codigoSucursal'] = df_inv['codigoSucursal'].apply(lambda x: str(x).zfill(4))
-    res_inv = resumen_totales_y_cantidades(df_inv, 'INVENTARIO', 'importeTotal', 'estado', 'SECTOR', 'codigoSucursal')
-    # Pasar el DataFrame SIAT original para que la fila ALQUILERES se calcule correctamente y no se dupliquen en sucursal CENTRAL
-    mostrar_cuadro_comparativo_siatsysinv(res_siat, res_inv, suc_map, df_siat_original=df_siat)
+    return comparison_results
